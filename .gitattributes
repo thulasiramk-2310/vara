@@ -1,0 +1,18 @@
+# Default: normalize to LF on commit, convert to native on checkout
+* text=auto eol=lf
+
+# Explicitly require LF for files that break under CRLF
+*.go     text eol=lf
+*.sh     text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.md     text eol=lf
+*.json   text eol=lf
+Makefile text eol=lf
+
+# Binary files — no line ending conversion
+*.zst    binary
+*.exe    binary
+*.dll    binary
+*.so     binary
+*.dylib  binary

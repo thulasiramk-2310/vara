@@ -1,0 +1,6 @@
+S  new_file.txt
+ M main.go
+ D old_code.go
+?? secret.txt
+?? untracked.go
+UU merge_conflict.go

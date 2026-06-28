@@ -1,0 +1,42 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+vara
+
+# Test binaries
+*.test
+*.out
+
+# Coverage
+coverage.out
+coverage.html
+
+# Profiling
+*.prof
+*.pprof
+mem.out
+cpu.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+
+# Benchmark results
+benchmark-results.txt
