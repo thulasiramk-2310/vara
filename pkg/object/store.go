@@ -1,7 +1,6 @@
 package object
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -84,20 +83,5 @@ func (s *Store) Read(id types.ObjectID) (Object, error) {
 		return nil, fmt.Errorf("%w: hash mismatch", errors.ErrInvalidObject)
 	}
 	
-	r := bytes.NewReader(raw)
-	typ, err := ReadHeader(r)
-	if err != nil {
-		return nil, err
-	}
-	
-	switch typ {
-	case TypeBlob:
-		return DeserializeBlob(r)
-	case TypeTree:
-		return DeserializeTree(r)
-	case TypeCommit:
-		return DeserializeCommit(r)
-	default:
-		return nil, errors.ErrInvalidObject
-	}
+	return Deserialize(raw)
 }

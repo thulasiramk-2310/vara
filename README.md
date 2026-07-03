@@ -107,6 +107,16 @@ vara verify           # full integrity check
 vara undo             # three-layer recovery: journal → reflog → snapshot
 ```
 
+**Working with remotes** (RFC-0014, local transport):
+
+```sh
+vara clone ../upstream myrepo   # copy a repository and its history
+vara remote add origin ../up    # register a remote
+vara fetch origin               # update remote-tracking refs
+vara pull origin main           # fetch + fast-forward or three-way merge
+vara push origin main           # upload commits (fast-forward checked)
+```
+
 **`vara status`:**
 
 ```
@@ -165,7 +175,8 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 | Commit Graph Index (RFC-0013) | ✅ Complete |
 | Repository verification (`vara verify`) | ✅ Complete |
 | Three-layer undo (`vara undo`) | ✅ Complete |
-| Remote protocol (clone, push, pull, fetch) | 🚧 v0.2 |
+| Remote protocol — clone, fetch, pull, push (local transport, RFC-0014) | ✅ Complete |
+| Network transport (`vara serve`, `vara://`) | 🚧 v0.3 |
 | Pack file format and delta compression | 🚧 v0.3 |
 | AI workflow layer | 🚧 v0.4 |
 | Binary release artifacts | 🚧 Soon |
@@ -177,8 +188,8 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 | Version | Milestone |
 |---------|-----------|
 | **v0.1** (now) | Local engine — all local commands, RFC-0013, `vara verify` |
-| **v0.2** | Remote protocol — clone, push, pull, fetch (RFC-0014–0016) |
-| **v0.3** | Scale — 100k-file stress tests, incremental graph index, pack files |
+| **v0.2** | Remote protocol — clone, fetch, pull, push over local transport (RFC-0014) ✅ |
+| **v0.3** | Network transport + scale — `vara serve`, delta packs, 100k-file stress tests (RFC-0015/0016) |
 | **v0.4** | AI layer — semantic diff, automated conflict resolution |
 | **v0.5** | VARA Hub alpha — hosted repositories, pull request protocol |
 | **v1.0** | Stable — frozen wire format, frozen CLI, LTS commitment |
