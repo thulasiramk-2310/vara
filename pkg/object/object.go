@@ -62,6 +62,27 @@ func ReadHeader(r *bytes.Reader) (ObjectType, error) {
 	}
 }
 
+// Deserialize decodes a raw (decompressed) serialized object into its typed
+// representation. It is the inverse of Object.Serialize and is used both by
+// Store.Read and by the transfer layer (RFC-0014) when ingesting a pack stream.
+func Deserialize(raw []byte) (Object, error) {
+	r := bytes.NewReader(raw)
+	typ, err := ReadHeader(r)
+	if err != nil {
+		return nil, err
+	}
+	switch typ {
+	case TypeBlob:
+		return DeserializeBlob(r)
+	case TypeTree:
+		return DeserializeTree(r)
+	case TypeCommit:
+		return DeserializeCommit(r)
+	default:
+		return nil, errors.ErrInvalidObject
+	}
+}
+
 func readUntilNul(r *bytes.Reader) ([]byte, error) {
 	var buf bytes.Buffer
 	for {

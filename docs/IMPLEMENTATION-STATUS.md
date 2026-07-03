@@ -15,12 +15,14 @@ actual codebase implementation.
 | 0007 | Commit Graph | Accepted | ✅ | `pkg/graph`, `pkg/builder` |
 | 0008 | Merge Algorithm | Accepted | ✅ | `internal/merge`, `pkg/diff` |
 | 0009 | Undo & Recovery | Accepted | ✅ | `internal/undo`, `pkg/recovery`, `pkg/snapshot` |
-| 0010 | Configuration | Draft | ❌ | Hardcoded author for now |
+| 0010 | Configuration | Draft | 🚧 | `pkg/config` — remotes + INI implemented; resolution cascade pending |
 | 0011 | AI Provider | Draft | ❌ | Not started |
 | 0012 | Command Specification | Accepted | ✅ | `internal/commands`, `cmd/vara` |
 | 0013 | Commit Graph Index | Accepted | ✅ | `pkg/graphindex` — RFC-0013 |
 | —   | Repository Integrity | Planned | ✅ | `pkg/verify`, `internal/commands/verify.go` |
-| 0014 | Storage Engine | Deferred | ❌ | Pack files, future work |
+| 0014 | Remote Protocol | Draft | 🚧 | `pkg/transfer`, `internal/transport`, remote commands — local transport done; network deferred |
+| 0015 | Pack Optimization | Planned | ❌ | Delta packs, boundary subtraction — future work |
+| 0016 | Network Transport | Planned | ❌ | `vara serve`, `vara://` transport — future work |
 
 ## Commands Implemented
 
@@ -37,6 +39,11 @@ actual codebase implementation.
 | `vara undo` | RFC-0012 §2, RFC-0009 | ✅ |
 | `vara verify` | RFC-0012 §2 | ✅ |
 | `vara log` | RFC-0012 §2 | ✅ alias for history |
+| `vara remote` | RFC-0014 §4 | ✅ add/remove/list |
+| `vara clone` | RFC-0014 §9.1 | ✅ local transport |
+| `vara fetch` | RFC-0014 §9.2 | ✅ local transport |
+| `vara pull` | RFC-0014 §9.3 | ✅ fast-forward + three-way merge |
+| `vara push` | RFC-0014 §9.4 | ✅ fast-forward check + `--force` |
 
 ## Performance Benchmarks
 

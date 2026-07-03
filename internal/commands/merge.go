@@ -43,6 +43,16 @@ func RunMerge(ctx *Context, branchName string) (string, error) {
 		return "", fmt.Errorf("branch '%s' not found", branchName)
 	}
 
+	return MergeIntoHEAD(ctx, theirCommitID, branchName)
+}
+
+// MergeIntoHEAD merges an arbitrary commit into the current HEAD using the same
+// snapshot → transaction → merge-engine pipeline as `vara merge`. It is shared
+// by `vara merge <branch>` (theirLabel = branch name) and `vara pull`
+// (theirLabel = "<remote>/<branch>"), since the merge engine is commit-based.
+func MergeIntoHEAD(ctx *Context, theirCommitID types.CommitID, theirLabel string) (string, error) {
+	resolver := refs.NewFSResolver(ctx.Repository.VaraDir)
+
 	ourCommitID, err := resolver.Resolve("HEAD")
 	if err != nil {
 		return "", fmt.Errorf("merge: HEAD is not a valid commit; nothing to merge into")
@@ -83,7 +93,7 @@ func RunMerge(ctx *Context, branchName string) (string, error) {
 		OurCommit:   ourCommitID,
 		TheirCommit: theirCommitID,
 		OurLabel:    ourLabel,
-		TheirLabel:  branchName,
+		TheirLabel:  theirLabel,
 	})
 	if err != nil {
 		return "", fmt.Errorf("merge: %w", err)
@@ -119,7 +129,7 @@ func RunMerge(ctx *Context, branchName string) (string, error) {
 		}
 		txn.TrackRef("HEAD", out.NewCommitID.String())
 		appendReflog(ctx, ourCommitID, out.NewCommitID,
-			fmt.Sprintf("merge %s: Fast-forward", branchName))
+			fmt.Sprintf("merge %s: Fast-forward", theirLabel))
 		if err := txn.Commit(); err != nil {
 			return "", err
 		}
@@ -141,7 +151,7 @@ func RunMerge(ctx *Context, branchName string) (string, error) {
 			types.TreeID(treeID),
 			[]types.CommitID{ourCommitID, theirCommitID},
 			"User <user@example.com>",
-			fmt.Sprintf("Merge branch '%s'", branchName),
+			fmt.Sprintf("Merge branch '%s'", theirLabel),
 		)
 		if err != nil {
 			return "", fmt.Errorf("merge: build commit: %w", err)
@@ -155,13 +165,13 @@ func RunMerge(ctx *Context, branchName string) (string, error) {
 		}
 		txn.TrackRef("HEAD", mergeCommitID.String())
 		appendReflog(ctx, ourCommitID, mergeCommitID,
-			fmt.Sprintf("merge %s: Merge made by 'recursive'", branchName))
+			fmt.Sprintf("merge %s: Merge made by 'recursive'", theirLabel))
 		if err := txn.Commit(); err != nil {
 			return "", err
 		}
 		graphindex.Invalidate(ctx.Repository.VaraDir)
 		return fmt.Sprintf("Merge made by 'recursive'.\n[%s] Merge branch '%s'\n",
-			mergeCommitID.String()[:7], branchName), nil
+			mergeCommitID.String()[:7], theirLabel), nil
 	}
 }
 
