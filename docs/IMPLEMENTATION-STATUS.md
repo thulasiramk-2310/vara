@@ -43,7 +43,8 @@ actual codebase implementation.
 | `vara clone` | RFC-0014 §9.1 | ✅ local transport |
 | `vara fetch` | RFC-0014 §9.2 | ✅ local transport |
 | `vara pull` | RFC-0014 §9.3 | ✅ fast-forward + three-way merge |
-| `vara push` | RFC-0014 §9.4 | ✅ fast-forward check + `--force` |
+| `vara push` | RFC-0014 §9.4 | ✅ fast-forward check + `--force`; concurrent-push safe (Refs lock) |
+| `vara gc` | RFC-0014 §12 | ✅ reclaim unreferenced objects; `--dry-run` |
 
 ## Performance Benchmarks
 

@@ -122,6 +122,27 @@ func TestCloneCopiesEverything(t *testing.T) {
 	}
 }
 
+func TestCloneRollbackOnFailure(t *testing.T) {
+	// A server whose main points at a commit that does not exist in its store.
+	// ListRefs succeeds (it only parses the ref), but the object transfer fails,
+	// which must trigger rollback of the partial destination.
+	server := filepath.Join(t.TempDir(), "server")
+	initRepo(t, server)
+	var bogus types.CommitID
+	for i := range bogus {
+		bogus[i] = 0xAB
+	}
+	setMain(t, server, bogus)
+
+	dst := filepath.Join(t.TempDir(), "clone")
+	if _, err := RunClone(server, dst); err == nil {
+		t.Fatal("clone from a dangling ref should fail")
+	}
+	if _, err := os.Stat(dst); !os.IsNotExist(err) {
+		t.Fatalf("clone left a partial destination behind: stat err = %v", err)
+	}
+}
+
 func TestFetchUpdatesTrackingNotLocal(t *testing.T) {
 	server, c1 := makeServer(t)
 	dst := filepath.Join(t.TempDir(), "clone")

@@ -120,10 +120,31 @@ func RunClone(url, dir string) (string, error) {
 		return "", fmt.Errorf("clone: list refs: %w", err)
 	}
 
+	// Remember whether the destination already existed so a failed clone rolls
+	// back exactly what it created and nothing more.
+	_, statErr := os.Stat(dir)
+	dirPreexisted := statErr == nil
+
 	repo, err := repository.Init(dir)
 	if err != nil {
 		return "", fmt.Errorf("clone: init: %w", err)
 	}
+
+	// Roll back a partial clone on any failure past this point: an interrupted
+	// or failed transfer must never leave a half-built repository behind
+	// (RFC-0014 §10). Set success=true on the return paths that complete.
+	success := false
+	defer func() {
+		if success {
+			return
+		}
+		if dirPreexisted {
+			os.RemoveAll(repo.VaraDir) // dir was the user's; only drop our .vara
+		} else {
+			os.RemoveAll(dir)
+		}
+	}()
+
 	ctx := &Context{Repository: repo, Index: index.New()}
 
 	// Record the origin remote.
@@ -134,6 +155,7 @@ func RunClone(url, dir string) (string, error) {
 	}
 
 	if len(advs) == 0 {
+		success = true
 		return fmt.Sprintf("Cloned empty repository into %s\n", dir), nil
 	}
 
@@ -191,6 +213,7 @@ func RunClone(url, dir string) (string, error) {
 	}
 	graphindex.Invalidate(repo.VaraDir)
 
+	success = true
 	return fmt.Sprintf("Cloned into %s (branch '%s' at %s)\n", dir, defBranch, defTarget.String()[:7]), nil
 }
 
