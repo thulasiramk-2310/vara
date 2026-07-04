@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/thulasiramk-2310/vara/internal/locking"
 	"github.com/thulasiramk-2310/vara/internal/repository"
 	"github.com/thulasiramk-2310/vara/pkg/graph"
 	"github.com/thulasiramk-2310/vara/pkg/object"
@@ -108,10 +110,24 @@ func (l *Local) FetchPack(wants, haves []types.CommitID) (io.ReadCloser, error) 
 
 // ReceivePack ingests the pack into the peer's store, then applies each ref
 // update under compare-and-swap and fast-forward rules (RFC-0014 §9.4, §10).
+//
+// Object ingestion is concurrency-safe on its own (objects are content-addressed
+// and written with atomic rename), so it runs before locking. The ref-update
+// phase is NOT safe without serialization: applyUpdate does a read→check→write
+// CAS that races with a concurrent push. We therefore hold the peer's Refs lock
+// (RFC-0006 §2) across all updates, so a second pusher blocks, then re-reads the
+// now-updated ref and its stale CAS is correctly rejected.
 func (l *Local) ReceivePack(pack io.Reader, updates []RefUpdate) ([]RefUpdateResult, error) {
 	if _, err := transfer.ReadPack(l.store, pack); err != nil {
 		return nil, fmt.Errorf("ingest pack: %w", err)
 	}
+
+	lock, err := locking.AcquireWithTimeout(l.varaDir, locking.NameRefs, 30*time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("acquire refs lock: %w", err)
+	}
+	defer lock.Release()
+
 	results := make([]RefUpdateResult, 0, len(updates))
 	for _, u := range updates {
 		results = append(results, l.applyUpdate(u))

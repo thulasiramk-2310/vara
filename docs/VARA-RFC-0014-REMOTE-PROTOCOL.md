@@ -280,12 +280,18 @@ into the current branch:
 * Reference updates are the only mutation that can lose information, and they
   are performed **last**, only after the entire object stream has been ingested
   and its trailer verified.
-* Each reference update is a compare-and-swap against `Old` under the ref lock
-  (RFC-0004 §5, RFC-0006). A concurrent update on the remote between `ListRefs`
-  and `ReceivePack` causes the CAS to fail and the update to be rejected; the
-  client MUST report this and MUST NOT retry blindly.
+* Each reference update is a compare-and-swap against `Old`. `ReceivePack`
+  acquires the peer's **Refs lock** (`locks/refs.lock`, RFC-0006 §2) for the
+  duration of the update phase, so the read→check→write CAS is atomic against
+  concurrent pushes. Two pushers racing on the same branch are serialized: the
+  second acquires the lock only after the first releases it, re-reads the
+  now-updated ref, and its stale CAS is rejected. A concurrent update between
+  `ListRefs` and `ReceivePack` therefore causes exactly one winner; the loser
+  MUST report the rejection and MUST NOT retry blindly.
+* Object ingestion runs *before* the lock, since content-addressed writes are
+  already safe to interleave; only the ref phase is serialized.
 * A failed or interrupted transfer leaves at most a set of unreferenced
-  objects, which are inert and eligible for a future `vara gc` (RFC-TBD).
+  objects, which are inert and reclaimable with `vara gc` (§12).
 
 # 11. Security Considerations
 
@@ -300,13 +306,50 @@ into the current branch:
   `url` that does not resolve to a directory containing a valid `.vara`
   repository rather than creating one implicitly.
 
-# 12. Future Work
+# 12. Garbage Collection
+
+`vara gc` reclaims objects no longer reachable from any root. The reachable set
+is the object closure (§7) of every root, where roots are: all references, the
+resolved `HEAD`, and every commit recorded in `HEAD`'s reflog. Including the
+reflog guarantees gc never deletes an object that `vara undo` could restore. Any
+loose object outside that closure is provably unreferenced and removed;
+`--dry-run` reports without deleting. gc makes interrupted transfers (§10) fully
+recoverable — their inert leftover objects are swept on the next run.
+
+# 13. Performance & Scaling
+
+Measured on AMD Ryzen 9 8945HS, Windows 11, NTFS. Each commit changes one file
+(3 objects/commit), a near-worst case for object count.
+
+| Commits | Full clone | Verify | Incremental fetch (+100) | Live heap |
+|---------|-----------|--------|--------------------------|-----------|
+| 1 000   | 40.1 s    | 17.3 s | 3.7 s                    | ~52 MiB   |
+| 2 000   | 61.8 s    | 48.3 s | 4.0 s                    | ~52 MiB   |
+
+Findings:
+
+* **Clone is linear**, not quadratic (~22 ms/commit + ~18 s fixed overhead).
+  The dominant cost is NTFS per-object file operations (~5–7 ms each) — the same
+  filesystem limit already documented for `add`/`status`, not an algorithmic
+  flaw. A destination inherently must write every object it lacks.
+* **Memory is bounded.** Live heap is flat (~52 MiB) regardless of history size:
+  objects compress small, so `ReadPack`'s whole-stream read is not a bottleneck
+  at these sizes. Streaming ingestion is nonetheless listed below for very large
+  transfers.
+* **Incremental fetch is ~constant** in repository size — its cost tracks the
+  number of *new* commits plus a cheap boundary walk, which is the common case.
+* A removable constant factor remains: enumeration reads each commit roughly
+  twice and `WritePack` re-reads all objects. Caching tree hashes during the
+  commit walk would cut server-side reads ~2×. Deferred to RFC-0015.
+
+# 14. Future Work
 
 * **RFC-0015 Pack Optimization** — delta-compressed packs, boundary-tree
-  subtraction, thin packs.
+  subtraction, thin packs, streaming ingestion (verify+write records as they
+  arrive instead of buffering the whole stream), and caching tree hashes during
+  the commit walk to halve server-side reads.
 * **RFC-0016 Network Transport** — a `vara serve` daemon and a `vara://`
   (and/or HTTPS) transport implementing the §6 interface over sockets, with
   authentication and capability negotiation.
 * **Multi-branch push**, tag propagation, and prune-on-fetch
   (`--prune` deletes remote-tracking refs whose remote branch disappeared).
-* **`vara gc`** to reclaim unreferenced objects left by interrupted transfers.

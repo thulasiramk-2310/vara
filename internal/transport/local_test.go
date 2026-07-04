@@ -1,7 +1,9 @@
 package transport
 
 import (
+	"bytes"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/thulasiramk-2310/vara/internal/repository"
@@ -168,6 +170,77 @@ func TestReceivePackRejectsNonFastForward(t *testing.T) {
 	// Server ref must be unchanged.
 	if got, _ := refsOf(server).Resolve("refs/heads/main"); got != c2 {
 		t.Fatalf("server main moved despite rejection: %s", got.String()[:7])
+	}
+}
+
+// TestReceivePackConcurrentPushOneWins fires two divergent pushes at the same
+// server ref concurrently and asserts exactly one wins — the Refs lock in
+// ReceivePack must serialize the CAS so the loser sees the updated ref.
+func TestReceivePackConcurrentPushOneWins(t *testing.T) {
+	server := makeRepo(t, "server")
+	c1 := commitFile(t, server, "base")
+	cA := commitFile(t, server, "branchA", c1)
+	cB := commitFile(t, server, "branchB", c1)
+	if err := refsOf(server).Update("refs/heads/main", c1); err != nil {
+		t.Fatalf("set main: %v", err)
+	}
+
+	// Objects already live in the server store, so an empty pack suffices; this
+	// test isolates the ref-update race, not object transfer. Pre-build packs
+	// (no t.Fatal inside goroutines).
+	newPack := func() *bytes.Reader {
+		var buf bytes.Buffer
+		if err := transfer.WritePack(storeOf(server), nil, &buf); err != nil {
+			t.Fatalf("write empty pack: %v", err)
+		}
+		return bytes.NewReader(buf.Bytes())
+	}
+	packs := []*bytes.Reader{newPack(), newPack()}
+	news := []types.CommitID{cA, cB}
+
+	var wg sync.WaitGroup
+	results := make([]bool, 2)
+	errs := make([]error, 2)
+	for i := range 2 {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			tr, err := Open(server)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			defer tr.Close()
+			res, err := tr.ReceivePack(packs[i], []RefUpdate{
+				{Name: "refs/heads/main", Old: c1, New: news[i]},
+			})
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			results[i] = res[0].OK
+		}(i)
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("push %d transport error: %v", i, err)
+		}
+	}
+	wins := 0
+	for _, ok := range results {
+		if ok {
+			wins++
+		}
+	}
+	if wins != 1 {
+		t.Fatalf("expected exactly 1 winner, got %d (results=%v)", wins, results)
+	}
+	// The server ref must reflect the winner (cA or cB), never still c1.
+	got, _ := refsOf(server).Resolve("refs/heads/main")
+	if got != cA && got != cB {
+		t.Fatalf("server main = %s, expected cA or cB", got.String()[:7])
 	}
 }
 
