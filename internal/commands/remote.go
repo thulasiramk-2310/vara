@@ -96,11 +96,7 @@ func RunRemote(ctx *Context, args []string) (string, error) {
 // RunClone implements `vara clone <url> [<dir>]` (RFC-0014 §9.1).
 func RunClone(url, dir string) (string, error) {
 	if dir == "" {
-		abs, err := transport.ParsePath(url)
-		if err != nil {
-			return "", err
-		}
-		dir = filepath.Base(strings.TrimRight(abs, `/\`))
+		dir = transport.SuggestDir(url)
 	}
 	if dir == "" || dir == "." {
 		return "", fmt.Errorf("clone: could not infer target directory from %q; specify one", url)
