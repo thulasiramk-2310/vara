@@ -22,7 +22,7 @@ actual codebase implementation.
 | —   | Repository Integrity | Planned | ✅ | `pkg/verify`, `internal/commands/verify.go` |
 | 0014 | Remote Protocol | Draft | 🚧 | `pkg/transfer`, `internal/transport`, remote commands — local transport done; network deferred |
 | 0015 | Pack Optimization | Planned | ❌ | Delta packs, boundary subtraction — future work |
-| 0016 | Remote Transport Protocol (HTTP Binding v1) | Accepted | ❌ | Spec frozen; `HTTPTransport` + `internal/server` + `vara serve` not yet built |
+| 0016 | Remote Transport Protocol (HTTP Binding v1) | Accepted | ✅ | `internal/protocol`, `internal/transport` (HTTPTransport), `internal/server`, `vara serve`; HTTP parity suite green — anonymous v1 |
 | 0017 | Identity | Planned | ❌ | Caller authentication — deferred from RFC-0016 |
 | 0018 | Repository Permissions | Planned | ❌ | Per-repo authorization — deferred from RFC-0016 |
 
@@ -42,10 +42,11 @@ actual codebase implementation.
 | `vara verify` | RFC-0012 §2 | ✅ |
 | `vara log` | RFC-0012 §2 | ✅ alias for history |
 | `vara remote` | RFC-0014 §4 | ✅ add/remove/list |
-| `vara clone` | RFC-0014 §9.1 | ✅ local transport |
-| `vara fetch` | RFC-0014 §9.2 | ✅ local transport |
+| `vara clone` | RFC-0014 §9.1 | ✅ local + HTTP transport |
+| `vara fetch` | RFC-0014 §9.2 | ✅ local + HTTP transport |
 | `vara pull` | RFC-0014 §9.3 | ✅ fast-forward + three-way merge |
-| `vara push` | RFC-0014 §9.4 | ✅ fast-forward check + `--force`; concurrent-push safe (Refs lock) |
+| `vara push` | RFC-0014 §9.4 | ✅ fast-forward check + `--force`; concurrent-push safe (Refs lock); local + HTTP |
+| `vara serve` | RFC-0016 §9 | ✅ HTTP binding v1 (anonymous); `--addr` / `--root` |
 | `vara gc` | RFC-0014 §12 | ✅ reclaim unreferenced objects; `--dry-run` |
 
 ## Performance Benchmarks

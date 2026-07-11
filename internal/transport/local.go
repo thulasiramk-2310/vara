@@ -26,11 +26,14 @@ type Local struct {
 	refs    *refs.FSResolver
 }
 
-// Open resolves url to a local repository and returns a Local transport. The
-// url is a filesystem path or a file:// URL pointing at the repository's
+// OpenLocal resolves url to a local repository and returns a Local transport.
+// The url is a filesystem path or a file:// URL pointing at the repository's
 // working root (the directory containing .vara). It is an error if that
 // directory does not already contain a valid VARA repository (RFC-0014 §11).
-func Open(url string) (*Local, error) {
+//
+// The scheme-dispatching entry point is Open (http.go); the server calls
+// OpenLocal directly because it always serves local repositories.
+func OpenLocal(url string) (*Local, error) {
 	root, err := ParsePath(url)
 	if err != nil {
 		return nil, err

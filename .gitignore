@@ -4,7 +4,10 @@
 *.dll
 *.so
 *.dylib
-vara
+# The built `vara` binary at the repo root. Anchored with a leading slash so it
+# does NOT also match the cmd/vara/ source directory (a bare `vara` did, which
+# silently excluded the CLI entry point from version control).
+/vara
 
 # Test binaries
 *.test

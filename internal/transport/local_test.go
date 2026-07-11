@@ -59,12 +59,26 @@ func commitFile(t *testing.T, root, content string, parents ...types.CommitID) t
 }
 
 func TestParsePath(t *testing.T) {
-	if _, err := Open("https://example.com/repo"); err == nil {
-		t.Fatal("expected https scheme to be rejected")
+	// ParsePath is the LOCAL path parser and must still reject non-local schemes;
+	// scheme dispatch to the HTTP binding happens in Open, not here.
+	if _, err := ParsePath("https://example.com/repo"); err == nil {
+		t.Fatal("ParsePath must reject non-local schemes")
 	}
 	abs, err := ParsePath("./some/path")
 	if err != nil || !filepath.IsAbs(abs) {
 		t.Fatalf("ParsePath relative: %q %v", abs, err)
+	}
+}
+
+// TestOpenDispatch checks that Open routes by scheme: an http(s) URL yields an
+// HTTPTransport (no network contact at construction), a path yields Local.
+func TestOpenDispatch(t *testing.T) {
+	tr, err := Open("https://example.com/repo")
+	if err != nil {
+		t.Fatalf("Open https should construct an HTTP transport: %v", err)
+	}
+	if _, ok := tr.(*HTTPTransport); !ok {
+		t.Fatalf("Open https gave %T, want *HTTPTransport", tr)
 	}
 }
 
