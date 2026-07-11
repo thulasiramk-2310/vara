@@ -2,6 +2,7 @@ package transport
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -57,10 +58,24 @@ type HTTPTransport struct {
 	base   string // repository base URL, e.g. http://host:8080/myrepo (no trailing /)
 	client *http.Client
 
+	// authHeader, when non-empty, is sent as the Authorization header on every
+	// request (RFC-0017 §9 — the client MAY present a credential).
+	authHeader string
+
 	// Cached advertisement from the most recent ListRefs, so HeadTarget (called
 	// right after ListRefs by clone) does not need a second round-trip.
 	head   string
 	gotAdv bool
+}
+
+// SetBasicAuth makes the transport present HTTP Basic credentials (RFC-0017 §9).
+func (t *HTTPTransport) SetBasicAuth(user, secret string) {
+	t.authHeader = "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+secret))
+}
+
+// SetBearerToken makes the transport present a Bearer token (RFC-0017 §9).
+func (t *HTTPTransport) SetBearerToken(token string) {
+	t.authHeader = "Bearer " + token
 }
 
 // OpenHTTP constructs an HTTPTransport for a remote repository URL. It does not
@@ -231,6 +246,9 @@ func (t *HTTPTransport) newRequest(method, suffix string, body io.Reader, conten
 	req.Header.Set(protocol.HeaderProto, protocol.Version)
 	req.Header.Set(protocol.HeaderWire, protocol.WireVersion)
 	req.Header.Set(protocol.HeaderTxn, protocol.NewTxnID())
+	if t.authHeader != "" {
+		req.Header.Set("Authorization", t.authHeader)
+	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}

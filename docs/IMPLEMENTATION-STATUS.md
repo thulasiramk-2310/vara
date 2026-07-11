@@ -23,8 +23,8 @@ actual codebase implementation.
 | 0014 | Remote Protocol | Draft | 🚧 | `pkg/transfer`, `internal/transport`, remote commands — local transport done; network deferred |
 | 0015 | Pack Optimization | Planned | ❌ | Delta packs, boundary subtraction — future work |
 | 0016 | Remote Transport Protocol (HTTP Binding v1) | Accepted | ✅ | `internal/protocol`, `internal/transport` (HTTPTransport), `internal/server`, `vara serve`; HTTP parity suite green — anonymous v1 |
-| 0017 | Identity & Authentication | Accepted | ❌ | Spec frozen (identity only; auth terminates above transport; C1–C7); not yet implemented |
-| 0018 | Authorization & Repository Policy | Accepted | ❌ | Spec frozen (capability-based; policy server-side outside repo; A1–A10); not yet implemented |
+| 0017 | Identity & Authentication | Accepted | ✅ | `internal/identity` (Anonymous/Basic/Bearer/Multi); wired into `internal/server` preamble; 401 |
+| 0018 | Authorization & Repository Policy | Accepted | ✅ | `internal/authz` (capability policy, file store, atomic reload); wired into `internal/server`; 403 |
 
 ## Commands Implemented
 

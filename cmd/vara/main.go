@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/thulasiramk-2310/vara/internal/commands"
 	"github.com/thulasiramk-2310/vara/internal/repository"
@@ -244,6 +245,7 @@ func main() {
 
 	case "serve":
 		addr, root := ":8080", "."
+		cfg := commands.ServeConfig{Basic: map[string]string{}, Bearer: map[string]string{}}
 		for i := 0; i < len(rest); i++ {
 			switch rest[i] {
 			case "--addr", "-a":
@@ -256,9 +258,32 @@ func main() {
 					root = rest[i+1]
 					i++
 				}
+			case "--policy", "-p":
+				if i+1 < len(rest) {
+					cfg.PolicyDir = rest[i+1]
+					i++
+				}
+			case "--basic":
+				if i+1 < len(rest) {
+					user, secret, ok := splitCred(rest[i+1])
+					if !ok {
+						die("serve: --basic expects user:secret")
+					}
+					cfg.Basic[user] = secret
+					i++
+				}
+			case "--bearer":
+				if i+1 < len(rest) {
+					token, subject, ok := splitCred(rest[i+1])
+					if !ok {
+						die("serve: --bearer expects token:subject")
+					}
+					cfg.Bearer[token] = subject
+					i++
+				}
 			}
 		}
-		if err := commands.RunServe(addr, root); err != nil {
+		if err := commands.RunServe(addr, root, cfg); err != nil {
 			die("%v", err)
 		}
 
@@ -305,6 +330,11 @@ func loadIndex(varaDir string) *index.Index {
 		os.Exit(1)
 	}
 	return idx
+}
+
+// splitCred splits a "key:value" credential flag argument at the first colon.
+func splitCred(s string) (key, value string, ok bool) {
+	return strings.Cut(s, ":")
 }
 
 // die prints a formatted error to stderr and exits.
@@ -505,9 +535,11 @@ The remote rejects a non-fast-forward update unless --force is given:
 A rejected push changes nothing on either side.
 `,
 	"serve": `usage: vara serve [--addr <host:port>] [--root <dir>]
+                  [--policy <dir>] [--basic <user:secret>]... [--bearer <token:subject>]...
 
 Serve the VARA repositories under <root> (default: current directory) over
-HTTP, implementing the RFC-0016 remote transport protocol (HTTP binding v1).
+HTTP, implementing the RFC-0016 remote transport protocol (HTTP binding v1),
+with optional identity (RFC-0017) and authorization (RFC-0018).
 
 Each subdirectory of <root> that is a VARA repository is served under its own
 name. Clients clone/fetch/pull/push over http:// URLs:
@@ -515,11 +547,19 @@ name. Clients clone/fetch/pull/push over http:// URLs:
   vara serve --root ./repositories --addr :8080
   vara clone http://localhost:8080/myproject
 
-This is an anonymous, unauthenticated server by design (RFC-0016 §3, §10):
-identity and permissions are RFC-0017/0018. Do NOT expose it as a write
-endpoint on an untrusted network. Press Ctrl-C to shut down gracefully.
+Identity (RFC-0017), repeatable:
+  --basic  alice:s3cret     accept HTTP Basic for user 'alice'
+  --bearer tok123:bob       accept Bearer token 'tok123' as subject 'bob'
+  With no credential flags the server is anonymous.
 
-Also updates the local remote-tracking ref for a pushed branch.
+Authorization (RFC-0018):
+  --policy ./policy         enforce per-repo policy from <dir>/<repo>.json
+  Policy maps subjects to capabilities: read, create-ref, push, force-push,
+  delete-ref. Absent policy = default-deny. 'anonymous' is an ordinary subject.
+
+With neither identity nor policy configured this is an anonymous, allow-all
+server; do NOT expose that as a write endpoint on an untrusted network. Press
+Ctrl-C to shut down gracefully.
 `,
 	"gc": `usage: vara gc [--dry-run]
 
