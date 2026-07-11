@@ -56,10 +56,8 @@ const (
 
 // Major returns the RFC-major of a protocol version string ("16.1" -> "16").
 func Major(v string) string {
-	if i := strings.IndexByte(v, '.'); i >= 0 {
-		return v[:i]
-	}
-	return v
+	major, _, _ := strings.Cut(v, ".")
+	return major
 }
 
 // --- message DTOs (RFC-0016 §8.4) ---
@@ -130,14 +128,16 @@ const (
 	CodeRejected       = "REJECTED"
 )
 
-// Request-level error codes (RFC-0016 §8.6).
+// Request-level error codes (RFC-0016 §8.6, extended by RFC-0017/0018).
 const (
-	CodeMalformed   = "MALFORMED_REQUEST"
-	CodeUnknownRepo = "UNKNOWN_REPOSITORY"
-	CodeInvalidPack = "INVALID_PACK"
-	CodeUpgrade     = "UPGRADE_REQUIRED"
-	CodeLockTimeout = "LOCK_TIMEOUT"
-	CodeInternal    = "INTERNAL"
+	CodeMalformed       = "MALFORMED_REQUEST"
+	CodeUnknownRepo     = "UNKNOWN_REPOSITORY"
+	CodeInvalidPack     = "INVALID_PACK"
+	CodeUpgrade         = "UPGRADE_REQUIRED"
+	CodeLockTimeout     = "LOCK_TIMEOUT"
+	CodeInternal        = "INTERNAL"
+	CodeUnauthenticated = "UNAUTHENTICATED" // RFC-0017 §8.2 — 401
+	CodeUnauthorized    = "UNAUTHORIZED"    // RFC-0018 §8.2 — 403
 )
 
 // CommitHex renders a commit ID as lowercase hex (64 chars; zero -> 64 zeros).

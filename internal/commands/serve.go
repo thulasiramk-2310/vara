@@ -17,11 +17,21 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/thulasiramk-2310/vara/internal/authz"
+	"github.com/thulasiramk-2310/vara/internal/identity"
 	"github.com/thulasiramk-2310/vara/internal/server"
 )
 
+// ServeConfig configures identity and authorization for `vara serve`. Empty
+// fields leave the server anonymous / allow-all (RFC-0016 behavior).
+type ServeConfig struct {
+	PolicyDir string            // enables authorization (RFC-0018) when set
+	Basic     map[string]string // user -> secret (RFC-0017 Basic)
+	Bearer    map[string]string // token -> subject (RFC-0017 Bearer)
+}
+
 // RunServe serves the repositories under root on addr until interrupted.
-func RunServe(addr, root string) error {
+func RunServe(addr, root string, cfg ServeConfig) error {
 	if addr == "" {
 		addr = ":8080"
 	}
@@ -36,9 +46,14 @@ func RunServe(addr, root string) error {
 		return fmt.Errorf("serve: root %q is not a directory", root)
 	}
 
+	opts, err := buildServerOptions(cfg)
+	if err != nil {
+		return fmt.Errorf("serve: %w", err)
+	}
+
 	srv := &http.Server{
 		Addr:    addr,
-		Handler: requestLogger(server.Handler(absRoot)),
+		Handler: requestLogger(server.HandlerWithOptions(absRoot, opts)),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -61,6 +76,42 @@ func RunServe(addr, root string) error {
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
 	}
+}
+
+// buildServerOptions assembles identity and authorization from the config. With
+// no credentials configured the server is anonymous; with a policy directory it
+// enforces authorization (RFC-0018).
+func buildServerOptions(cfg ServeConfig) (server.Options, error) {
+	var opts server.Options
+
+	var sources []identity.IdentitySource
+	if len(cfg.Basic) > 0 {
+		sources = append(sources, identity.NewBasicSource(cfg.Basic))
+		opts.Methods = append(opts.Methods, "auth-basic")
+	}
+	if len(cfg.Bearer) > 0 {
+		sources = append(sources, identity.NewBearerSource(cfg.Bearer))
+		opts.Methods = append(opts.Methods, "auth-bearer")
+	}
+	if len(sources) > 0 {
+		// Credentials required for writes, but allow anonymous so a policy can
+		// still grant anonymous reads (RFC-0017: anonymous is an identity).
+		opts.Identity = &identity.Multi{Sources: sources, AllowAnonymous: true}
+		opts.Methods = append(opts.Methods, "auth-anonymous")
+	}
+
+	if cfg.PolicyDir != "" {
+		absPolicy, err := filepath.Abs(cfg.PolicyDir)
+		if err != nil {
+			return opts, fmt.Errorf("resolve policy dir: %w", err)
+		}
+		if fi, err := os.Stat(absPolicy); err != nil || !fi.IsDir() {
+			return opts, fmt.Errorf("policy dir %q is not a directory", cfg.PolicyDir)
+		}
+		store := authz.NewStore(absPolicy)
+		opts.Authz = authz.NewEnforcer(store, log.Default())
+	}
+	return opts, nil
 }
 
 // requestLogger logs each request's method, path, status, and duration.

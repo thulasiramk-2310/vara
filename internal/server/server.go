@@ -1,17 +1,21 @@
 // Package server is the HTTP binding of the VARA remote transport protocol
-// (VARA-RFC-0016 §8/§9). It exposes an http.Handler that dispatches each
-// request to a Local transport (internal/transport) bound to the requested
-// repository.
+// (VARA-RFC-0016 §8/§9), with identity (RFC-0017) and authorization (RFC-0018)
+// layered in the request preamble.
 //
-// The server contains NO version-control logic. It is a codec: decode a
-// request, call the matching Local method (ListRefs / FetchPack / ReceivePack),
-// encode the result. In particular the concurrency contract (RFC-0016 §7) is
-// satisfied by calling Local.ReceivePack — which holds the Refs lock across the
-// compare-and-swap — never by reimplementing ref updates here (Single
-// Implementation Principle, RFC-0016 §9.1). The server never touches a working
-// tree (RFC-0016 §9.2).
+// The per-request pipeline is fixed (RFC-0018 A10):
 //
-// Layer: above internal/transport, below internal/commands.
+//	Request → Authenticate → Authorize → Transport → Engine
+//
+// The server contains NO version-control logic and makes NO identity or
+// authorization decision inside the engine. Authentication resolves an identity
+// (or 401) before any Transport method; authorization decides allow/deny (or
+// 403) before the transport is opened; only then does the handler delegate the
+// operation to a Local transport, which alone touches the repository. Identity
+// and policy are read only here in the binding — never below internal/transport
+// (RFC-0017 C1, RFC-0018 A1).
+//
+// Layer: above internal/transport (and internal/identity, internal/authz),
+// below internal/commands.
 package server
 
 import (
@@ -24,35 +28,77 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/thulasiramk-2310/vara/internal/authz"
+	"github.com/thulasiramk-2310/vara/internal/identity"
 	"github.com/thulasiramk-2310/vara/internal/protocol"
 	"github.com/thulasiramk-2310/vara/internal/transport"
 	"github.com/thulasiramk-2310/vara/pkg/types"
 )
 
-// Server serves repositories rooted at a single directory. Each request's
-// {repo} path segment names a subdirectory that must be a VARA repository.
-type Server struct {
-	root string
-	caps []string
+var zeroCommit types.CommitID
+
+// Options configures a server's identity and authorization behavior. The zero
+// Options yields an anonymous, allow-all server (RFC-0016 behavior).
+type Options struct {
+	// Identity resolves credentials. nil means anonymous (auth disabled).
+	Identity identity.IdentitySource
+	// Authz decides allow/deny. nil means authorization disabled (allow all).
+	Authz *authz.Enforcer
+	// Methods are the auth-* capability tokens advertised on info/refs and used
+	// to build WWW-Authenticate (e.g. "auth-basic", "auth-bearer").
+	Methods []string
 }
 
-// Handler returns an http.Handler serving the repositories under root
-// (RFC-0016 §8.1 routes).
+// Server serves repositories rooted at a single directory.
+type Server struct {
+	root    string
+	idsrc   identity.IdentitySource
+	authz   *authz.Enforcer
+	caps    []string
+	methods []string
+}
+
+// Handler returns an anonymous, allow-all handler (RFC-0016 behavior).
 func Handler(root string) http.Handler {
+	return HandlerWithOptions(root, Options{})
+}
+
+// HandlerWithOptions returns a handler with the given identity/authorization
+// configuration (RFC-0016 §8.1 routes; RFC-0017/0018 preamble).
+func HandlerWithOptions(root string, opts Options) http.Handler {
+	idsrc := opts.Identity
+	if idsrc == nil {
+		idsrc = identity.AnonymousSource{}
+	}
+	caps := []string{protocol.CapReportStatus}
+	caps = append(caps, opts.Methods...)
+	if opts.Authz != nil {
+		caps = append(caps, "authz-v1")
+	}
 	s := &Server{
-		root: root,
-		caps: []string{protocol.CapReportStatus},
+		root:    root,
+		idsrc:   idsrc,
+		authz:   opts.Authz,
+		caps:    caps,
+		methods: opts.Methods,
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET "+"/{repo}"+protocol.PathInfoRefs, s.handleListRefs)
-	mux.HandleFunc("POST "+"/{repo}"+protocol.PathFetch, s.handleFetch)
-	mux.HandleFunc("POST "+"/{repo}"+protocol.PathReceive, s.handleReceive)
+	mux.HandleFunc("GET /{repo}"+protocol.PathInfoRefs, s.handleListRefs)
+	mux.HandleFunc("POST /{repo}"+protocol.PathFetch, s.handleFetch)
+	mux.HandleFunc("POST /{repo}"+protocol.PathReceive, s.handleReceive)
 	return mux
 }
 
-// handleListRefs: GET /:repo/info/refs (RFC-0016 §5.1).
+// handleListRefs: GET /:repo/info/refs (RFC-0016 §5.1). Requires `read`.
 func (s *Server) handleListRefs(w http.ResponseWriter, r *http.Request) {
-	tr, ok := s.open(w, r)
+	id, repo, ok := s.begin(w, r)
+	if !ok {
+		return
+	}
+	if !s.authorize(w, id, authz.CapRead, repo) {
+		return
+	}
+	tr, ok := s.openRepo(w, repo)
 	if !ok {
 		return
 	}
@@ -71,9 +117,16 @@ func (s *Server) handleListRefs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// handleFetch: POST /:repo/fetch (RFC-0016 §5.2). Read-only; streams a VPCK body.
+// handleFetch: POST /:repo/fetch (RFC-0016 §5.2). Requires `read`.
 func (s *Server) handleFetch(w http.ResponseWriter, r *http.Request) {
-	tr, ok := s.open(w, r)
+	id, repo, ok := s.begin(w, r)
+	if !ok {
+		return
+	}
+	if !s.authorize(w, id, authz.CapRead, repo) {
+		return
+	}
+	tr, ok := s.openRepo(w, repo)
 	if !ok {
 		return
 	}
@@ -107,14 +160,14 @@ func (s *Server) handleFetch(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, stream)
 }
 
-// handleReceive: POST /:repo/receive (RFC-0016 §5.3). Ingests the pack and
-// applies ref updates by delegating to Local.ReceivePack (§7, §9.1).
+// handleReceive: POST /:repo/receive (RFC-0016 §5.3). Authorizes EVERY ref
+// update's required capability before the transport is opened, so a denied push
+// never reaches Local (RFC-0018 A2, §6.1: request-level, all-or-nothing).
 func (s *Server) handleReceive(w http.ResponseWriter, r *http.Request) {
-	tr, ok := s.open(w, r)
+	id, repo, ok := s.begin(w, r)
 	if !ok {
 		return
 	}
-	defer tr.Close()
 
 	mr, err := multipartReader(r)
 	if err != nil {
@@ -122,7 +175,8 @@ func (s *Server) handleReceive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Part 1: the JSON update list.
+	// Part 1: the JSON update list — needed to know which capabilities the
+	// request requires, before touching the transport.
 	p1, err := mr.NextPart()
 	if err != nil {
 		writeError(w, http.StatusBadRequest, protocol.CodeMalformed, "missing updates part")
@@ -139,6 +193,21 @@ func (s *Server) handleReceive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Authorize each update from its shape alone (RFC-0018 §8.1). A single
+	// missing capability denies the whole request before the transport opens.
+	for _, u := range updates {
+		cap := authz.RequiredForUpdate(u.Old == zeroCommit, u.New == zeroCommit, u.Force)
+		if !s.authorize(w, id, cap, repo) {
+			return
+		}
+	}
+
+	tr, ok := s.openRepo(w, repo)
+	if !ok {
+		return
+	}
+	defer tr.Close()
+
 	// Part 2: the raw VPCK stream, handed straight to the transport.
 	p2, err := mr.NextPart()
 	if err != nil {
@@ -148,8 +217,6 @@ func (s *Server) handleReceive(w http.ResponseWriter, r *http.Request) {
 
 	results, err := tr.ReceivePack(p2, updates)
 	if err != nil {
-		// A pack that fails integrity is a request-level error (§8.5); anything
-		// else (lock acquisition, I/O) is a server fault. Neither advances a ref.
 		if strings.Contains(err.Error(), "ingest pack") {
 			writeError(w, http.StatusUnprocessableEntity, protocol.CodeInvalidPack, err.Error())
 		} else {
@@ -173,29 +240,83 @@ func (s *Server) handleReceive(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// open validates the protocol version and repository name, echoes the reserved
-// headers, and opens the Local transport. On any failure it writes the
-// structured error and returns ok=false.
-func (s *Server) open(w http.ResponseWriter, r *http.Request) (transport.Transport, bool) {
+// begin runs the request preamble: echo headers, check the protocol version,
+// validate the repository name, and AUTHENTICATE. It returns the resolved
+// identity and repo name, or writes an error (426/400/401) and returns ok=false.
+// Authentication happens here, before any transport is opened (RFC-0018 A10).
+func (s *Server) begin(w http.ResponseWriter, r *http.Request) (identity.Identity, string, bool) {
 	echoHeaders(w, r)
 
 	if v := r.Header.Get(protocol.HeaderProto); v != "" && protocol.Major(v) != protocol.Major(protocol.Version) {
 		writeError(w, http.StatusUpgradeRequired, protocol.CodeUpgrade, "unsupported protocol version "+v)
-		return nil, false
+		return identity.Identity{}, "", false
 	}
 
 	repo := r.PathValue("repo")
 	if !validRepo(repo) {
 		writeError(w, http.StatusBadRequest, protocol.CodeMalformed, "invalid repository name")
-		return nil, false
+		return identity.Identity{}, "", false
 	}
 
+	// Parse precedes authenticate (RFC-0017 §6.2): a malformed header is a 401
+	// that never reaches the identity source.
+	cred, err := identity.ParseHeader(r.Header.Get("Authorization"))
+	if err != nil {
+		s.writeUnauthenticated(w, err)
+		return identity.Identity{}, "", false
+	}
+	id, err := s.idsrc.Authenticate(cred)
+	if err != nil {
+		s.writeUnauthenticated(w, err)
+		return identity.Identity{}, "", false
+	}
+	return id, repo, true
+}
+
+// authorize enforces that id holds cap on repo (RFC-0018). With no enforcer
+// configured, authorization is disabled and everything is allowed. On denial it
+// writes 403 and returns false. Runs before the transport is opened (A2).
+func (s *Server) authorize(w http.ResponseWriter, id identity.Identity, cap authz.Capability, repo string) bool {
+	if s.authz == nil {
+		return true
+	}
+	if err := s.authz.Authorize(id.ID, cap, repo); err != nil {
+		writeError(w, http.StatusForbidden, protocol.CodeUnauthorized, err.Error())
+		return false
+	}
+	return true
+}
+
+// openRepo opens the Local transport for repo, or writes 404.
+func (s *Server) openRepo(w http.ResponseWriter, repo string) (transport.Transport, bool) {
 	tr, err := transport.OpenLocal(filepath.Join(s.root, repo))
 	if err != nil {
 		writeError(w, http.StatusNotFound, protocol.CodeUnknownRepo, "no repository "+repo)
 		return nil, false
 	}
 	return tr, true
+}
+
+// writeUnauthenticated writes 401 with a WWW-Authenticate header (RFC-0017 §8).
+func (s *Server) writeUnauthenticated(w http.ResponseWriter, err error) {
+	if wa := s.wwwAuthenticate(); wa != "" {
+		w.Header().Set("WWW-Authenticate", wa)
+	}
+	writeError(w, http.StatusUnauthorized, protocol.CodeUnauthenticated, err.Error())
+}
+
+// wwwAuthenticate builds the WWW-Authenticate value from the advertised methods.
+func (s *Server) wwwAuthenticate() string {
+	var schemes []string
+	for _, m := range s.methods {
+		switch m {
+		case "auth-basic":
+			schemes = append(schemes, `Basic realm="VARA"`)
+		case "auth-bearer":
+			schemes = append(schemes, "Bearer")
+		}
+	}
+	return strings.Join(schemes, ", ")
 }
 
 // echoHeaders sets the protocol/wire version headers and echoes the client's
@@ -208,9 +329,7 @@ func echoHeaders(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// validRepo rejects empty names and path traversal (RFC-0016 §8.1). The route
-// pattern already restricts {repo} to a single segment (no separators), so this
-// guards the remaining dangerous names.
+// validRepo rejects empty names and path traversal (RFC-0016 §8.1).
 func validRepo(repo string) bool {
 	if repo == "" || repo == "." || repo == ".." {
 		return false
