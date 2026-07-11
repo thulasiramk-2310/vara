@@ -22,7 +22,9 @@ actual codebase implementation.
 | —   | Repository Integrity | Planned | ✅ | `pkg/verify`, `internal/commands/verify.go` |
 | 0014 | Remote Protocol | Draft | 🚧 | `pkg/transfer`, `internal/transport`, remote commands — local transport done; network deferred |
 | 0015 | Pack Optimization | Planned | ❌ | Delta packs, boundary subtraction — future work |
-| 0016 | Network Transport | Planned | ❌ | `vara serve`, `vara://` transport — future work |
+| 0016 | Remote Transport Protocol (HTTP Binding v1) | Accepted | ❌ | Spec frozen; `HTTPTransport` + `internal/server` + `vara serve` not yet built |
+| 0017 | Identity | Planned | ❌ | Caller authentication — deferred from RFC-0016 |
+| 0018 | Repository Permissions | Planned | ❌ | Per-repo authorization — deferred from RFC-0016 |
 
 ## Commands Implemented
 
