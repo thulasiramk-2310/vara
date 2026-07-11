@@ -90,6 +90,39 @@ without affecting the stable format guarantee.
 
 ---
 
+## Transport Compatibility
+
+Once a repository is reachable over the network (`vara serve`, RFC-0016),
+third-party clients can speak the protocol. The following promise is what those
+client authors rely on.
+
+> **VARA Engine v1 guarantees compatibility with all v1 transport bindings that
+> implement the same protocol and wire versions.** Within Engine v1:
+>
+> - The remote transport guarantees defined in RFC-0016 (G1–G6) are stable.
+> - Existing message semantics are not broken.
+> - New functionality is introduced only through negotiated capabilities
+>   (RFC-0016 §5.4).
+> - Clients that ignore unknown capabilities remain interoperable.
+> - Breaking wire changes require a new engine major version.
+
+The protocol version (`X-VARA-Protocol`, RFC-major . binding) and the wire
+version (`X-VARA-Wire`, VPCK pack format) are advertised on every request and
+negotiated independently, so the pack format (RFC-0015) can evolve without a
+protocol bump and vice versa.
+
+| Engine | Protocol | Wire | Status       |
+|--------|---------:|-----:|--------------|
+| v1     |     16.1 |    1 | ✅ Supported |
+| v2     |      TBD |  TBD | Future       |
+
+**Identity and authorization are layered above this contract** and do not alter
+it: an RFC-0017 (Identity) server rejects an unauthenticated call with `401`
+where a v1 anonymous server returned `200`, but the message *shapes* and
+guarantees are unchanged. Adding auth is additive, never a wire break.
+
+---
+
 ## Version Policy
 
 | Artifact | Versioning | Change Policy |
@@ -102,7 +135,8 @@ without affecting the stable format guarantee.
 ## Current Versions
 
 - **Repository Format**: v1 (RFC-0003)
-- **Protocol**: v1.0.0 (RFC-0002)
+- **Object Protocol**: v1.0.0 (RFC-0002)
+- **Transport Protocol**: 16.1, wire 1 (RFC-0016, HTTP binding v1)
 - **Implementation**: v0.1.0-alpha
 - **CLI**: v0.1.0-alpha
 
