@@ -65,14 +65,9 @@ have an empty diff across the entire Platform layer.
 | 0018 | Authorization & Repository Policy | `internal/authz` |
 | 0019 | Repository Management & Ownership | `internal/repomanager`, control plane in `internal/server`, `vara repo` |
 | 0020 | Accounts & Sessions | `internal/identity` (accounts/sessions/tokens, argon2id), control plane in `internal/server`, `vara login/logout/token/account` |
+| 0021 | Hub Read & Management API | `internal/hub` projection, read API + cookie sessions + `vara serve --hub` in `internal/server`, `web/` Hub UI |
 
-_The backend Platform foundation (v0.2) is complete: every accepted RFC through 0020 is implemented, with the engine unchanged across all of them._
-
-### 🚧 Accepted, Implementation Pending
-
-| RFC | Title | State |
-|-----|-------|-------|
-| 0021 | Hub Read & Management API | Accepted (v1.0.0) — read endpoints + cookie sessions + `vara serve --hub`; first VARA Hub RFC |
+_The backend Platform foundation (v0.2) is complete, and the first VARA Hub — a read API plus a same-origin web UI — is now live on top of it, still with the engine unchanged._
 
 ### 📋 Planned
 
