@@ -320,6 +320,14 @@ func main() {
 			die("%v", err)
 		}
 
+	case "doctor":
+		acfg, args := parseAuthFlags(rest)
+		// RunDoctor prints its own report; a non-nil error means a check failed,
+		// so exit non-zero quietly (no "vara:" prefix over the printed report).
+		if err := commands.RunDoctor(args, version, acfg); err != nil {
+			os.Exit(1)
+		}
+
 	case "login", "logout", "token", "account":
 		acfg, args := parseAuthFlags(rest)
 		var err error
@@ -437,6 +445,7 @@ Commands:
   merge     Join development histories together
   undo      Revert to the last committed state
   verify    Check repository integrity
+  doctor    Diagnose repo, config, and remote health
 
 Remote commands (RFC-0014):
   clone     Clone a repository into a new directory
@@ -713,6 +722,20 @@ capability on the server; an account may change its own password.
   vara account create  http://localhost:8080 bob --password hunter2 --basic admin:pw
   vara account passwd   http://localhost:8080 bob --password newpw   --bearer <bob-token>
   vara account disable  http://localhost:8080 bob --basic admin:pw
+`,
+	"doctor": `usage: vara doctor [<server-url>] [--basic <user:secret> | --bearer <token>]
+
+Run a fast, read-only health check and print a report. With no arguments it
+checks the current repository (format, HEAD, object store, refs, index, commit
+graph), your configuration, and the reachability of each configured remote.
+
+Pass a server URL to focus the remote checks on it (with optional credentials):
+
+  vara doctor
+  vara doctor http://localhost:8080/myrepo --basic alice:s3cret
+
+Exits non-zero if any check fails, so it is safe to use in scripts. For a deep
+object/DAG integrity audit, use 'vara verify'.
 `,
 	"gc": `usage: vara gc [--dry-run]
 
