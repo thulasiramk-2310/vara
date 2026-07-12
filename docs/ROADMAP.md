@@ -68,14 +68,21 @@ have an empty diff across the entire Platform layer.
 
 _The backend Platform foundation (v0.2) is complete: every accepted RFC through 0020 is implemented, with the engine unchanged across all of them._
 
+### 🚧 Accepted, Implementation Pending
+
+| RFC | Title | State |
+|-----|-------|-------|
+| 0021 | Hub Read & Management API | Accepted (v1.0.0) — read endpoints + cookie sessions + `vara serve --hub`; first VARA Hub RFC |
+
 ### 📋 Planned
 
 | RFC | Title | Focus |
 |-----|-------|-------|
-| 0021 | REST / Management API | The control-plane surface a UI and CLI both consume |
-| 0022 | Web Dashboard | Presentation over the management API |
-| 0023 | Collaboration | Issues & pull requests, referencing repositories by immutable ID |
+| 0022 | Repository Browser | Tree / blob / file-history views over the read API |
+| 0023 | Diff Viewer | Commit diffs and branch comparison |
+| 0024 | Search | Repository and commit search |
 | —    | Organizations & Teams | Multi-owner namespaces refining who an owner is |
+| —    | Collaboration | Issues & pull requests, referencing repositories by immutable ID |
 
 ### 🧊 Deferred (specified as future work, not yet scheduled)
 
