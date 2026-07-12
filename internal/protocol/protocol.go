@@ -59,6 +59,13 @@ const (
 // repository may be named with a leading "_" (RFC-0019 §10).
 const PathRepos = "/_vara/repositories"
 
+// Account/session/token control-plane paths (RFC-0020 §8).
+const (
+	PathSessions = "/_vara/sessions"
+	PathTokens   = "/_vara/tokens"
+	PathAccounts = "/_vara/accounts"
+)
+
 // Major returns the RFC-major of a protocol version string ("16.1" -> "16").
 func Major(v string) string {
 	major, _, _ := strings.Cut(v, ".")
@@ -157,6 +164,64 @@ type ListReposResponse struct {
 	Repositories []RepositoryDescriptor `json:"repositories"`
 }
 
+// --- account/session/token DTOs (RFC-0020 §8) ---
+
+// LoginRequest is the body of POST /_vara/sessions.
+type LoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// LoginResponse returns the session secret ONCE (RFC-0020 §6.2).
+type LoginResponse struct {
+	Secret    string `json:"secret"`
+	ExpiresAt string `json:"expires_at"`
+}
+
+// CreateTokenRequest is the body of POST /_vara/tokens.
+type CreateTokenRequest struct {
+	Name string `json:"name"`
+}
+
+// CreateTokenResponse returns the token secret ONCE (RFC-0020 §6.2).
+type CreateTokenResponse struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Secret    string `json:"secret"`
+	CreatedAt string `json:"created_at"`
+}
+
+// TokenInfo is a token's metadata — never its secret (RFC-0020 §5.3).
+type TokenInfo struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	CreatedAt  string `json:"created_at"`
+	LastUsedAt string `json:"last_used_at,omitempty"`
+}
+
+// ListTokensResponse is the body of GET /_vara/tokens.
+type ListTokensResponse struct {
+	Tokens []TokenInfo `json:"tokens"`
+}
+
+// CreateAccountRequest is the body of POST /_vara/accounts.
+type CreateAccountRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// SetPasswordRequest is the body of PUT /_vara/accounts/{username}/password.
+type SetPasswordRequest struct {
+	Password string `json:"password"`
+}
+
+// AccountDescriptor is the metadata view of an account — never a secret.
+type AccountDescriptor struct {
+	Username  string `json:"username"`
+	State     string `json:"state"`
+	CreatedAt string `json:"created_at"`
+}
+
 // Per-ref result codes (RFC-0016 §8.6).
 const (
 	CodeOK             = "OK"
@@ -180,6 +245,8 @@ const (
 	CodeUnauthorized    = "UNAUTHORIZED"      // RFC-0018 §8.2 — 403
 	CodeRepoExists      = "REPOSITORY_EXISTS" // RFC-0019 §8.2 — 409
 	CodeNotImplemented  = "NOT_IMPLEMENTED"   // RFC-0019 §8.1 — reserved routes, 501
+	CodeAccountExists   = "ACCOUNT_EXISTS"    // RFC-0020 §8.4 — 409
+	CodeNotFound        = "NOT_FOUND"         // RFC-0020 §8.4 — 404
 )
 
 // CommitHex renders a commit ID as lowercase hex (64 chars; zero -> 64 zeros).

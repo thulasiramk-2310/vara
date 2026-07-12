@@ -15,6 +15,11 @@ const (
 	CapRenameRepo Capability = "rename-repo" // repo:   POST /_vara/repositories/{repo}/rename (old name)
 	CapAdmin      Capability = "admin"       // repo:   read/modify policy & metadata
 	CapArchive    Capability = "archive"     // repo:   archive/unarchive — reserved (§5.4)
+
+	// CapManageAccounts is server-scoped (RFC-0020 §8.3): it authorizes account
+	// administration (create/disable/delete/set-password for any account). An
+	// account changing its OWN password does not require it.
+	CapManageAccounts Capability = "manage-accounts"
 )
 
 // ServerResource is the reserved policy key naming the host itself (RFC-0019
@@ -30,6 +35,7 @@ const ServerResource = "_server"
 func init() {
 	for _, c := range []Capability{
 		CapCreateRepo, CapListRepos, CapDeleteRepo, CapRenameRepo, CapAdmin, CapArchive,
+		CapManageAccounts,
 	} {
 		Known[c] = true
 	}

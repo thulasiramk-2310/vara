@@ -38,7 +38,7 @@ have an empty diff across the entire Platform layer.
 | Version  | Focus                                                     | Status         |
 | -------- | --------------------------------------------------------- | -------------- |
 | **v0.1** | Engine + Distributed Transport                            | ✅ Complete     |
-| **v0.2** | Hub Backend (Identity, Authorization, Repo Management, Accounts) | 🚧 In Progress |
+| **v0.2** | Hub Backend (Identity, Authorization, Repo Management, Accounts) | ✅ Complete     |
 | **v0.3** | Organizations + Teams + REST API                          | Planned        |
 | **v0.4** | Pull Requests + Issues + Reviews                          | Planned        |
 | **v1.0** | Stable Platform                                           | Future         |
@@ -64,12 +64,9 @@ have an empty diff across the entire Platform layer.
 | 0017 | Identity & Authentication | `internal/identity` |
 | 0018 | Authorization & Repository Policy | `internal/authz` |
 | 0019 | Repository Management & Ownership | `internal/repomanager`, control plane in `internal/server`, `vara repo` |
+| 0020 | Accounts & Sessions | `internal/identity` (accounts/sessions/tokens, argon2id), control plane in `internal/server`, `vara login/logout/token/account` |
 
-### 🚧 Accepted, Implementation Pending
-
-| RFC | Title | State |
-|-----|-------|-------|
-| 0020 | Accounts & Sessions | Accepted (v1.0.0) — the last foundational Platform RFC; `internal/identity` credential store + sources next |
+_The backend Platform foundation (v0.2) is complete: every accepted RFC through 0020 is implemented, with the engine unchanged across all of them._
 
 ### 📋 Planned
 

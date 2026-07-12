@@ -27,10 +27,11 @@ import (
 // plane for `vara serve`. Empty fields leave the server anonymous / allow-all
 // (RFC-0016 behavior).
 type ServeConfig struct {
-	PolicyDir string            // enables authorization (RFC-0018) when set
-	MetaDir   string            // enables the RFC-0019 control plane when set (requires PolicyDir)
-	Basic     map[string]string // user -> secret (RFC-0017 Basic)
-	Bearer    map[string]string // token -> subject (RFC-0017 Bearer)
+	PolicyDir   string            // enables authorization (RFC-0018) when set
+	MetaDir     string            // enables the RFC-0019 control plane when set (requires PolicyDir)
+	AccountsDir string            // enables the RFC-0020 account/session/token control plane when set
+	Basic       map[string]string // user -> secret (RFC-0017 static Basic)
+	Bearer      map[string]string // token -> subject (RFC-0017 static Bearer)
 }
 
 // RunServe serves the repositories under root on addr until interrupted.
@@ -89,12 +90,36 @@ func buildServerOptions(cfg ServeConfig, absRoot string) (server.Options, error)
 	var opts server.Options
 
 	var sources []identity.IdentitySource
+	hasBasic, hasBearer := false, false
 	if len(cfg.Basic) > 0 {
 		sources = append(sources, identity.NewBasicSource(cfg.Basic))
-		opts.Methods = append(opts.Methods, "auth-basic")
+		hasBasic = true
 	}
 	if len(cfg.Bearer) > 0 {
 		sources = append(sources, identity.NewBearerSource(cfg.Bearer))
+		hasBearer = true
+	}
+
+	// RFC-0020: durable accounts contribute persistent Basic + Bearer sources
+	// backed by the same manager that also serves the account control plane.
+	if cfg.AccountsDir != "" {
+		absAcct, err := filepath.Abs(cfg.AccountsDir)
+		if err != nil {
+			return opts, fmt.Errorf("resolve accounts dir: %w", err)
+		}
+		mgr, err := identity.NewAccountManager(absAcct)
+		if err != nil {
+			return opts, fmt.Errorf("accounts: %w", err)
+		}
+		opts.Accounts = mgr
+		sources = append(sources, mgr.BasicSource(), mgr.BearerSource())
+		hasBasic, hasBearer = true, true
+	}
+
+	if hasBasic {
+		opts.Methods = append(opts.Methods, "auth-basic")
+	}
+	if hasBearer {
 		opts.Methods = append(opts.Methods, "auth-bearer")
 	}
 	if len(sources) > 0 {
