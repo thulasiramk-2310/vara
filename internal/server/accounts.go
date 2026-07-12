@@ -33,6 +33,21 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, protocol.CodeUnauthenticated, "invalid credentials")
 		return
 	}
+	// Browser cookie mode (RFC-0021 §7): ?cookie=1 sets the session secret in an
+	// httpOnly cookie and withholds it from the body, so page JS never sees it.
+	if r.URL.Query().Get("cookie") == "1" {
+		http.SetCookie(w, &http.Cookie{
+			Name:     sessionCookie,
+			Value:    secret,
+			Path:     "/",
+			Expires:  expiresAt,
+			HttpOnly: true,
+			Secure:   requestIsHTTPS(r),
+			SameSite: http.SameSiteStrictMode,
+		})
+		writeJSON(w, http.StatusCreated, protocol.LoginResponse{ExpiresAt: expiresAt.UTC().Format(time.RFC3339)})
+		return
+	}
 	writeJSON(w, http.StatusCreated, protocol.LoginResponse{
 		Secret: secret, ExpiresAt: expiresAt.UTC().Format(time.RFC3339),
 	})
@@ -44,16 +59,19 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.authn(w, r); !ok {
 		return
 	}
-	// The caller must present the session as a bearer credential to revoke it.
-	cred, err := identity.ParseHeader(r.Header.Get("Authorization"))
+	// The caller presents the session as a bearer credential — either an
+	// Authorization header (CLI) or the session cookie (browser, RFC-0021 §7).
+	cred, err := credentialFrom(r)
 	if err != nil || cred == nil || cred.Scheme != identity.SchemeBearer {
-		writeError(w, http.StatusBadRequest, protocol.CodeMalformed, "logout requires the session bearer token")
+		writeError(w, http.StatusBadRequest, protocol.CodeMalformed, "logout requires the session bearer token or cookie")
 		return
 	}
 	if err := s.accounts.Logout(cred.Token); err != nil {
 		writeError(w, http.StatusInternalServerError, protocol.CodeInternal, err.Error())
 		return
 	}
+	// Clear the browser cookie if one was set (harmless for header clients).
+	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true})
 	w.WriteHeader(http.StatusNoContent)
 }
 

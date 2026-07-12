@@ -274,6 +274,11 @@ func main() {
 					cfg.AccountsDir = rest[i+1]
 					i++
 				}
+			case "--hub":
+				if i+1 < len(rest) {
+					cfg.HubDir = rest[i+1]
+					i++
+				}
 			case "--basic":
 				if i+1 < len(rest) {
 					user, secret, ok := splitCred(rest[i+1])
@@ -686,6 +691,12 @@ Account control plane (RFC-0020):
                             and durable password/session/token authentication.
                             Account admin needs the manage-accounts capability on
                             the server (_server.json). Passwords are argon2id.
+
+Hub UI (RFC-0021):
+  --hub ./web               serve a same-origin static Hub UI from <dir> at any
+                            path not claimed by the API or data plane. Enables the
+                            read API (repo summary/branches/commits) and browser
+                            cookie sessions. Serve behind TLS in production.
 
 With neither identity nor policy configured this is an anonymous, allow-all
 server; do NOT expose that as a write endpoint on an untrusted network. Press

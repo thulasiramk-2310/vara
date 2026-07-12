@@ -30,6 +30,7 @@ type ServeConfig struct {
 	PolicyDir   string            // enables authorization (RFC-0018) when set
 	MetaDir     string            // enables the RFC-0019 control plane when set (requires PolicyDir)
 	AccountsDir string            // enables the RFC-0020 account/session/token control plane when set
+	HubDir      string            // serves the RFC-0021 same-origin static Hub UI when set
 	Basic       map[string]string // user -> secret (RFC-0017 static Basic)
 	Bearer      map[string]string // token -> subject (RFC-0017 static Bearer)
 }
@@ -158,6 +159,17 @@ func buildServerOptions(cfg ServeConfig, absRoot string) (server.Options, error)
 			return opts, err
 		}
 		opts.Manager = mgr
+	}
+
+	if cfg.HubDir != "" {
+		absHub, err := filepath.Abs(cfg.HubDir)
+		if err != nil {
+			return opts, fmt.Errorf("resolve hub dir: %w", err)
+		}
+		if fi, err := os.Stat(absHub); err != nil || !fi.IsDir() {
+			return opts, fmt.Errorf("hub dir %q is not a directory", cfg.HubDir)
+		}
+		opts.HubDir = absHub
 	}
 	return opts, nil
 }
