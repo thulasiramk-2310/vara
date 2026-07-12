@@ -1,7 +1,7 @@
 VARA RFC: 0020
 Title: Accounts & Sessions
 Status: Accepted
-Version: 1.0.0
+Version: 1.1.0
 Authors: Thulasiram K
 Created: 2026-07-12
 Last Updated: 2026-07-12
@@ -359,6 +359,24 @@ RFC-0019's server-scope model rather than inventing a new mechanism.
 | Malformed body / weak password         | 400    | `MALFORMED_REQUEST`           |
 
 `ACCOUNT_EXISTS` is the one new code; the rest are inherited.
+
+## 8.5 Identity introspection — whoami (v1.1, additive)
+
+```
+GET /_vara/whoami[?repo=<name>]  → 200 {id, method, anonymous, repository?, capabilities?}
+```
+
+A read-only endpoint that reports the identity the server resolved for the
+presented credential (or `anonymous`). With a `?repo=<name>` query it also returns
+which capabilities that identity holds on the resource — a read-only view of the
+RFC-0018 decision, for debugging permissions. `?repo=_server` reports server-scope
+capabilities (`create-repo`/`list-repos`/`manage-accounts`).
+
+It authenticates like any route but requires no capability (a caller may always
+ask "who am I?"), returns **no secret**, and is available whenever the server is
+running (it does not depend on the account control plane being enabled). Being
+purely additive and backward-compatible, it is a v1.1 addition that changes no
+existing message.
 
 # 9. Storage & Ownership
 

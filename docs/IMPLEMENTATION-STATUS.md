@@ -54,6 +54,7 @@ actual codebase implementation.
 | `vara login` / `logout` | RFC-0020 §8.1 | ✅ session login (prints token once) / logout |
 | `vara token` | RFC-0020 §8.2 | ✅ create/list/revoke API tokens |
 | `vara account` | RFC-0020 §8.3 | ✅ create/disable/delete/passwd (manage-accounts + self) |
+| `vara whoami` | RFC-0020 §8.5 | ✅ resolved identity + per-repo capabilities (`--repo`, `--repo _server`) |
 | `vara doctor` | — (DX) | ✅ read-only health check: repo/config/remote; exits non-zero on failure |
 
 ## Performance Benchmarks

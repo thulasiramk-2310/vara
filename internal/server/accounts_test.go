@@ -89,6 +89,41 @@ func TestAccountControlPlane(t *testing.T) {
 	}
 }
 
+// TestWhoami proves the identity-introspection endpoint reports the resolved
+// subject and its per-repository capabilities (RFC-0020 §8.5).
+func TestWhoami(t *testing.T) {
+	ts, mgr, policyRoot := newAccountHub(t)
+	_ = mgr.CreateAccount("alice", "password1")
+	// alice may read but not push on repo "demo".
+	putPolicy(t, policyRoot, "demo", `{"version":1,"subjects":{"alice":["read"]}}`)
+
+	// Anonymous whoami.
+	st, body := cpReq(t, http.MethodGet, ts.URL+"/_vara/whoami", "", "")
+	if st != http.StatusOK || !strings.Contains(body, `"anonymous":true`) {
+		t.Fatalf("anonymous whoami = %d %s", st, body)
+	}
+
+	// alice whoami with repo capabilities.
+	st, body = cpReq(t, http.MethodGet, ts.URL+"/_vara/whoami?repo=demo", basic("alice", "password1"), "")
+	if st != http.StatusOK {
+		t.Fatalf("alice whoami = %d %s", st, body)
+	}
+	var resp struct {
+		ID           string          `json:"id"`
+		Anonymous    bool            `json:"anonymous"`
+		Capabilities map[string]bool `json:"capabilities"`
+	}
+	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.ID != "alice" || resp.Anonymous {
+		t.Fatalf("identity wrong: %+v", resp)
+	}
+	if !resp.Capabilities["read"] || resp.Capabilities["push"] {
+		t.Fatalf("capabilities wrong (want read=true push=false): %+v", resp.Capabilities)
+	}
+}
+
 // TestLoginFailureIs401 proves a bad login is 401 (never 403, never a hint).
 func TestLoginFailureIs401(t *testing.T) {
 	ts, mgr, _ := newAccountHub(t)

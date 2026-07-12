@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/thulasiramk-2310/vara/internal/commands"
@@ -328,7 +329,7 @@ func main() {
 			os.Exit(1)
 		}
 
-	case "login", "logout", "token":
+	case "login", "logout", "token", "whoami":
 		acfg, args := parseAuthFlags(rest)
 		var err error
 		switch cmd {
@@ -338,6 +339,8 @@ func main() {
 			err = commands.RunLogout(args, acfg)
 		case "token":
 			err = commands.RunToken(args, acfg)
+		case "whoami":
+			err = commands.RunWhoami(args, acfg)
 		}
 		if err != nil {
 			die("%v", err)
@@ -409,12 +412,7 @@ func splitCred(s string) (key, value string, ok bool) {
 
 // containsFlag reports whether flag appears in args.
 func containsFlag(args []string, flag string) bool {
-	for _, a := range args {
-		if a == flag {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(args, flag)
 }
 
 // parseAuthFlags pulls --basic/--bearer/--password out of args (RFC-0020 client
@@ -482,6 +480,7 @@ Hub commands (RFC-0019, RFC-0020):
   repo      Manage repositories on a server (create/delete/rename/list/show)
   login     Log in to a server and obtain a session token
   logout    Revoke the current session
+  whoami    Show who the server thinks you are (and your capabilities)
   token     Manage API tokens (create/list/revoke)
   account   Manage accounts (create/disable/delete/passwd)
 
@@ -725,6 +724,16 @@ password in an http://user:token@host clone URL.
 	"logout": `usage: vara logout <server-url> --bearer <session-token>
 
 Revoke the session identified by the given token immediately (RFC-0020).
+`,
+	"whoami": `usage: vara whoami <server-url> [--repo <name>] [--basic u:s | --bearer t]
+
+Show the identity the server resolves for your credential (RFC-0020 §8.5).
+With --repo, also list which capabilities you hold on that repository — handy
+for debugging why a push or an admin action is denied. Use --repo _server to
+see server-scope capabilities (create-repo, list-repos, manage-accounts).
+
+  vara whoami http://localhost:8080 --bearer <token>
+  vara whoami http://localhost:8080 --repo demo --basic alice:s3cret
 `,
 	"token": `usage: vara token <create|list|revoke> <server-url> [args] [--basic u:s | --bearer t]
 

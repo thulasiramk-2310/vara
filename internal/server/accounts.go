@@ -215,6 +215,53 @@ func (s *Server) handleSetPassword(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// repoScopeCaps / serverScopeCaps are the capability sets whoami reports for a
+// repository resource and the server resource, respectively.
+var repoScopeCaps = []authz.Capability{
+	authz.CapRead, authz.CapCreateRef, authz.CapPush, authz.CapForcePush,
+	authz.CapDeleteRef, authz.CapDeleteRepo, authz.CapRenameRepo, authz.CapAdmin,
+}
+
+var serverScopeCaps = []authz.Capability{
+	authz.CapCreateRepo, authz.CapListRepos, authz.CapManageAccounts,
+}
+
+// handleWhoami: GET /_vara/whoami[?repo=<name>]. Reports the resolved identity,
+// and (with ?repo) which capabilities it holds there — a read-only view of the
+// RFC-0018 decision, for debugging permissions. Always available.
+func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.authn(w, r)
+	if !ok {
+		return
+	}
+	resp := protocol.WhoamiResponse{
+		ID:        id.ID,
+		Method:    id.Method.String(),
+		Anonymous: id.ID == identity.Anonymous.ID,
+	}
+	if repo := r.URL.Query().Get("repo"); repo != "" {
+		resp.Repository = repo
+		caps := repoScopeCaps
+		if repo == authz.ServerResource {
+			caps = serverScopeCaps
+		}
+		resp.Capabilities = make(map[string]bool, len(caps))
+		for _, c := range caps {
+			resp.Capabilities[string(c)] = s.hasCapability(id, c, repo)
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// hasCapability reports whether id holds cap on repo. With no enforcer configured,
+// authorization is disabled and everything is granted (matching request handling).
+func (s *Server) hasCapability(id identity.Identity, cap authz.Capability, repo string) bool {
+	if s.authz == nil {
+		return true
+	}
+	return s.authz.Authorize(id.ID, cap, repo) == nil
+}
+
 // writeAccountError maps an AccountManager error to a control-plane status code
 // (RFC-0020 §8.4).
 func (s *Server) writeAccountError(w http.ResponseWriter, err error) {

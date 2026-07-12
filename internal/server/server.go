@@ -107,6 +107,10 @@ func HandlerWithOptions(root string, opts Options) http.Handler {
 	mux.HandleFunc("POST /{repo}"+protocol.PathFetch, s.handleFetch)
 	mux.HandleFunc("POST /{repo}"+protocol.PathReceive, s.handleReceive)
 
+	// whoami is always available (read-only identity introspection, RFC-0020
+	// §8.5): it reports the resolved identity and, for a ?repo, its capabilities.
+	mux.HandleFunc("GET "+protocol.PathWhoami, s.handleWhoami)
+
 	// RFC-0019 control plane, only when a manager is configured. Routes live
 	// under the reserved /_vara/ prefix so they never collide with the
 	// data-plane /{repo}/... routes above.
