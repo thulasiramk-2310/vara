@@ -179,9 +179,11 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
-// LoginResponse returns the session secret ONCE (RFC-0020 §6.2).
+// LoginResponse returns the session secret ONCE (RFC-0020 §6.2). Secret is
+// omitted in cookie mode (RFC-0021 §7), where it lives only in the httpOnly
+// cookie and never in the body.
 type LoginResponse struct {
-	Secret    string `json:"secret"`
+	Secret    string `json:"secret,omitempty"`
 	ExpiresAt string `json:"expires_at"`
 }
 

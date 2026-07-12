@@ -57,6 +57,33 @@ type Options struct {
 	// /_vara/tokens, /_vara/accounts). The same manager should back the identity
 	// sources in Identity so authentication and administration share one store.
 	Accounts *identity.AccountManager
+	// HubDir, when set, serves a same-origin static Hub UI from that directory at
+	// any path not claimed by the API or data plane (RFC-0021 §8).
+	HubDir string
+}
+
+// sessionCookie carries a browser session secret (RFC-0021 §7). It is httpOnly so
+// page JavaScript can never read it.
+const sessionCookie = "vara_session"
+
+// credentialFrom extracts the caller's credential from the request: the
+// Authorization header if present, else the session cookie (RFC-0021 §7 — a
+// cookie is just another carrier for a bearer credential), else anonymous.
+func credentialFrom(r *http.Request) (*identity.Credential, error) {
+	if h := r.Header.Get("Authorization"); h != "" {
+		return identity.ParseHeader(h)
+	}
+	if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
+		return &identity.Credential{Scheme: identity.SchemeBearer, Token: c.Value}, nil
+	}
+	return nil, nil // anonymous
+}
+
+// requestIsHTTPS reports whether the request reached us over TLS, directly or via
+// a terminating proxy — used to mark the session cookie Secure without breaking
+// plain-http local development.
+func requestIsHTTPS(r *http.Request) bool {
+	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 }
 
 // Server serves repositories rooted at a single directory.
@@ -144,6 +171,13 @@ func HandlerWithOptions(root string, opts Options) http.Handler {
 		mux.HandleFunc("DELETE "+protocol.PathAccounts+"/{username}", s.handleDeleteAccount)
 		mux.HandleFunc("POST "+protocol.PathAccounts+"/{username}/disable", s.handleDisableAccount)
 		mux.HandleFunc("PUT "+protocol.PathAccounts+"/{username}/password", s.handleSetPassword)
+	}
+
+	// RFC-0021 §8: serve the same-origin static Hub UI as a STRICT fallback — the
+	// "/" pattern is the least specific, so every API and data-plane route above
+	// wins; only otherwise-unmatched paths reach the static handler (H3).
+	if opts.HubDir != "" {
+		mux.Handle("GET /", staticHandler(opts.HubDir))
 	}
 	return mux
 }
@@ -313,8 +347,9 @@ func (s *Server) authn(w http.ResponseWriter, r *http.Request) (identity.Identit
 	}
 
 	// Parse precedes authenticate (RFC-0017 §6.2): a malformed header is a 401
-	// that never reaches the identity source.
-	cred, err := identity.ParseHeader(r.Header.Get("Authorization"))
+	// that never reaches the identity source. The credential may arrive as an
+	// Authorization header (CLI) or a session cookie (browser, RFC-0021 §7).
+	cred, err := credentialFrom(r)
 	if err != nil {
 		s.writeUnauthenticated(w, err)
 		return identity.Identity{}, false
