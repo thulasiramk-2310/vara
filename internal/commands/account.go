@@ -13,7 +13,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"sort"
 	"strings"
+
+	"github.com/thulasiramk-2310/vara/pkg/color"
 
 	"github.com/thulasiramk-2310/vara/internal/protocol"
 )
@@ -73,6 +77,51 @@ func cpDo(base, method, path, auth string, body, out any) error {
 	}
 	if out != nil {
 		return json.NewDecoder(resp.Body).Decode(out)
+	}
+	return nil
+}
+
+// RunWhoami: vara whoami <server-url> [--repo <name>] [--basic|--bearer]. Prints
+// the identity the server resolves for the presented credential, and — with
+// --repo — the capabilities it holds there.
+func RunWhoami(args []string, cfg AuthConfig) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: vara whoami <server-url> [--repo <name>] [--basic u:s | --bearer t]")
+	}
+	base := args[0]
+	var repo string
+	for i := 1; i < len(args); i++ {
+		if args[i] == "--repo" && i+1 < len(args) {
+			repo = args[i+1]
+			i++
+		}
+	}
+	path := protocol.PathWhoami
+	if repo != "" {
+		path += "?repo=" + url.QueryEscape(repo)
+	}
+	var resp protocol.WhoamiResponse
+	if err := cpDo(base, http.MethodGet, path, authHeader(cfg), nil, &resp); err != nil {
+		return err
+	}
+	fmt.Printf("user:   %s\n", resp.ID)
+	fmt.Printf("method: %s\n", resp.Method)
+	fmt.Printf("server: %s\n", strings.TrimRight(base, "/"))
+	if resp.Repository != "" {
+		fmt.Printf("repository: %s\n", resp.Repository)
+		fmt.Println("capabilities:")
+		names := make([]string, 0, len(resp.Capabilities))
+		for c := range resp.Capabilities {
+			names = append(names, c)
+		}
+		sort.Strings(names)
+		for _, c := range names {
+			mark := color.Red("✗")
+			if resp.Capabilities[c] {
+				mark = color.Green("✓")
+			}
+			fmt.Printf("  %s %s\n", mark, c)
+		}
 	}
 	return nil
 }

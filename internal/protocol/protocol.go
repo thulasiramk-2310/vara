@@ -64,6 +64,7 @@ const (
 	PathSessions = "/_vara/sessions"
 	PathTokens   = "/_vara/tokens"
 	PathAccounts = "/_vara/accounts"
+	PathWhoami   = "/_vara/whoami" // RFC-0020 §8.5 (additive) — identity introspection
 )
 
 // Major returns the RFC-major of a protocol version string ("16.1" -> "16").
@@ -220,6 +221,18 @@ type AccountDescriptor struct {
 	Username  string `json:"username"`
 	State     string `json:"state"`
 	CreatedAt string `json:"created_at"`
+}
+
+// WhoamiResponse reports the caller's resolved identity (RFC-0020 §8.5). With a
+// ?repo=<name> query it also reports which capabilities the identity holds on
+// that resource — a read-only view of the RFC-0018 decision, for debugging
+// permissions. It never returns a secret.
+type WhoamiResponse struct {
+	ID           string          `json:"id"`
+	Method       string          `json:"method"`
+	Anonymous    bool            `json:"anonymous"`
+	Repository   string          `json:"repository,omitempty"`
+	Capabilities map[string]bool `json:"capabilities,omitempty"`
 }
 
 // Per-ref result codes (RFC-0016 §8.6).
