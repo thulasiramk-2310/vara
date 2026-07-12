@@ -111,6 +111,13 @@ func HandlerWithOptions(root string, opts Options) http.Handler {
 	// §8.5): it reports the resolved identity and, for a ?repo, its capabilities.
 	mux.HandleFunc("GET "+protocol.PathWhoami, s.handleWhoami)
 
+	// RFC-0021 Hub read API — always available (read-only content projection).
+	// Each requires the `read` capability, checked before any content is read.
+	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/summary", s.handleRepoSummary)
+	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/branches", s.handleRepoBranches)
+	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/commits", s.handleRepoCommits)
+	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/commits/{id}", s.handleRepoCommit)
+
 	// RFC-0019 control plane, only when a manager is configured. Routes live
 	// under the reserved /_vara/ prefix so they never collide with the
 	// data-plane /{repo}/... routes above.
