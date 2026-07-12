@@ -33,6 +33,12 @@ const (
 	HeaderWire  = "X-VARA-Wire"
 	HeaderRepo  = "X-VARA-Repository"
 	HeaderTxn   = "X-VARA-Transaction"
+
+	// Hub read API headers (RFC-0021 §10.1, §10.3). HeaderAPI advertises the Hub
+	// API version, independent of the transport protocol version above.
+	HeaderAPI       = "X-VARA-API"
+	HeaderRequestID = "X-Request-ID"
+	APIVersion      = "1"
 )
 
 // Content types (RFC-0016 §8.2).
@@ -223,6 +229,54 @@ type AccountDescriptor struct {
 	CreatedAt string `json:"created_at"`
 }
 
+// --- Hub read API DTOs (RFC-0021 §10) ---
+
+// CommitSummary is a projected commit (RFC-0021 §5.3). Timestamps are RFC 3339
+// UTC; ids and parents are 64-char hex.
+type CommitSummary struct {
+	ID        string   `json:"id"`
+	Message   string   `json:"message"`
+	Author    string   `json:"author"`
+	Timestamp string   `json:"timestamp"`
+	Parents   []string `json:"parents"`
+}
+
+// CommitDetail adds the tree id to a commit summary (RFC-0021 §5.4).
+type CommitDetail struct {
+	CommitSummary
+	Tree string `json:"tree"`
+}
+
+// CommitsResponse is the body of GET .../commits, with a cursor for the next page
+// (absent at the end).
+type CommitsResponse struct {
+	Commits []CommitSummary `json:"commits"`
+	Next    string          `json:"next,omitempty"`
+}
+
+// BranchInfo is a projected branch (RFC-0021 §5.2).
+type BranchInfo struct {
+	Name   string `json:"name"`
+	Target string `json:"target"`
+	IsHead bool   `json:"is_head"`
+}
+
+// BranchesResponse is the body of GET .../branches.
+type BranchesResponse struct {
+	Branches []BranchInfo `json:"branches"`
+}
+
+// RepositorySummary is the body of GET .../summary (RFC-0021 §5.5).
+type RepositorySummary struct {
+	ID            string         `json:"id"`
+	Name          string         `json:"name"`
+	DefaultBranch string         `json:"default_branch"`
+	Head          string         `json:"head"`
+	CommitCount   int            `json:"commit_count"`
+	BranchCount   int            `json:"branch_count"`
+	LastCommit    *CommitSummary `json:"last_commit,omitempty"`
+}
+
 // WhoamiResponse reports the caller's resolved identity (RFC-0020 §8.5). With a
 // ?repo=<name> query it also reports which capabilities the identity holds on
 // that resource — a read-only view of the RFC-0018 decision, for debugging
@@ -260,6 +314,7 @@ const (
 	CodeNotImplemented  = "NOT_IMPLEMENTED"   // RFC-0019 §8.1 — reserved routes, 501
 	CodeAccountExists   = "ACCOUNT_EXISTS"    // RFC-0020 §8.4 — 409
 	CodeNotFound        = "NOT_FOUND"         // RFC-0020 §8.4 — 404
+	CodeRateLimited     = "RATE_LIMITED"      // RFC-0021 §10.3 — 429
 )
 
 // CommitHex renders a commit ID as lowercase hex (64 chars; zero -> 64 zeros).

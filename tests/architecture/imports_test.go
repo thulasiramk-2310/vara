@@ -28,6 +28,7 @@ var forbidden = []string{
 	module + "/internal/identity",
 	module + "/internal/authz",
 	module + "/internal/repomanager",
+	module + "/internal/hub",
 }
 
 // TestEngineDoesNotImportBindingLayers verifies the C1/A1/M1 invariant
@@ -64,6 +65,28 @@ func TestRepoManagerHasNoUpwardImports(t *testing.T) {
 	for _, up := range []string{module + "/internal/server", module + "/internal/commands"} {
 		if strings.Contains(deps, up) {
 			t.Errorf("internal/repomanager transitively imports %s — violates RFC-0019 M12 (no upward imports)", up)
+		}
+	}
+}
+
+// TestHubProjectsEngineOnly verifies RFC-0021 H2/H8: the Hub projection layer
+// reads the engine and nothing else. It must import no binding-layer package
+// (server, commands, authz, identity, repomanager, protocol) — if it did, it
+// would be assembling representations rather than purely projecting engine state.
+func TestHubProjectsEngineOnly(t *testing.T) {
+	full := module + "/internal/hub"
+	out, err := exec.Command("go", "list", "-deps", full).CombinedOutput()
+	if err != nil {
+		t.Fatalf("go list -deps %s: %v\n%s", full, err, out)
+	}
+	deps := string(out)
+	for _, bad := range []string{
+		module + "/internal/server", module + "/internal/commands",
+		module + "/internal/authz", module + "/internal/identity",
+		module + "/internal/repomanager", module + "/internal/protocol",
+	} {
+		if strings.Contains(deps, bad) {
+			t.Errorf("internal/hub imports %s — violates RFC-0021 H2/H8 (project the engine, don't reinterpret)", bad)
 		}
 	}
 }

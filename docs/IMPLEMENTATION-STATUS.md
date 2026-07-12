@@ -27,7 +27,7 @@ actual codebase implementation.
 | 0018 | Authorization & Repository Policy | Accepted | ✅ | `internal/authz` (capability policy, file store, atomic reload); wired into `internal/server`; 403 |
 | 0019 | Repository Management & Ownership | Accepted | ✅ | First VARA Hub RFC; `internal/repomanager` (three-artifact atomic lifecycle, immutable ID, state machine), control plane in `internal/server` (`/_vara/repositories`), server (`*`) resource scope in `internal/authz`, `vara serve --meta` + `vara repo` CLI; engine untouched |
 | 0020 | Accounts & Sessions | Accepted | ✅ | Durable accounts + sessions + API tokens as persistent RFC-0017 `IdentitySource` impls in `internal/identity` (argon2id via `golang.org/x/crypto`, SHA-256 token hashes, immediate revocation, constant-time login); control plane `/_vara/sessions|tokens|accounts` in `internal/server`; `manage-accounts` server-scope; `vara serve --accounts` + `vara login/logout/token/account`; engine untouched |
-| 0021 | Hub Read & Management API | Accepted | ⏳ | Read-only content endpoints (summary/branches/commits/commit) projecting the engine (H8), ETag + cursor pagination, httpOnly-cookie browser sessions, `vara serve --hub` same-origin static serving, `X-VARA-API` versioning; planned `internal/hub` projection layer; not yet implemented |
+| 0021 | Hub Read & Management API | Accepted | 🚧 | **Phase A done**: read endpoints (summary/branches/commits/commit) via `internal/hub` projection layer (H2/H8, engine untouched), `read`-gated, ETag+If-None-Match/304, cursor pagination, `X-VARA-API`/`X-Request-ID`. **Pending**: Phase B (`vara serve --hub` static serving + httpOnly-cookie sessions), Phase C (Hub UI) |
 
 ## Commands Implemented
 
