@@ -7,13 +7,13 @@
 
 # VARA
 
-**RFC-driven, transactional, content-addressed version control engine written in Go.**
+**RFC-driven, transactional, content-addressed distributed version control platform written in Go.**
 
 [![CI](https://github.com/thulasiramk-2310/vara/actions/workflows/ci.yml/badge.svg)](https://github.com/thulasiramk-2310/vara/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/go-1.21+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v0.1.0--alpha-orange)](https://github.com/thulasiramk-2310/vara/releases/tag/v0.1.0-alpha)
-[![RFC Status](https://img.shields.io/badge/RFCs-10%20accepted-blue)](docs/)
+[![Release](https://img.shields.io/badge/release-v0.2.0-blue)](https://github.com/thulasiramk-2310/vara/releases/tag/v0.2.0)
+[![RFC Status](https://img.shields.io/badge/RFCs-20%20accepted-blue)](docs/)
 
 </div>
 
@@ -75,13 +75,13 @@ git clone https://github.com/thulasiramk-2310/vara
 cd vara
 go build -o vara ./cmd/vara
 ./vara --version
-# 0.1.0-alpha
+# 0.2.0
 ```
 
 Or with `go install`:
 
 ```sh
-go install github.com/thulasiramk-2310/vara/cmd/vara@v0.1.0-alpha
+go install github.com/thulasiramk-2310/vara/cmd/vara@v0.2.0
 ```
 
 Requires **Go 1.21+**. No CGO, no external build dependencies.
@@ -165,7 +165,7 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 
 ## Current Status
 
-**v0.1.0-alpha** — local engine complete, remote protocol not yet started.
+**v0.2.0** — backend platform complete: engine, HTTP transport, identity, authorization, repository management, and accounts & sessions. See [docs/RELEASE-v0.2.0.md](docs/RELEASE-v0.2.0.md).
 
 | Component | Status |
 |-----------|--------|
