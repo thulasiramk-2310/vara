@@ -26,7 +26,7 @@ actual codebase implementation.
 | 0017 | Identity & Authentication | Accepted | ✅ | `internal/identity` (Anonymous/Basic/Bearer/Multi); wired into `internal/server` preamble; 401 |
 | 0018 | Authorization & Repository Policy | Accepted | ✅ | `internal/authz` (capability policy, file store, atomic reload); wired into `internal/server`; 403 |
 | 0019 | Repository Management & Ownership | Accepted | ✅ | First VARA Hub RFC; `internal/repomanager` (three-artifact atomic lifecycle, immutable ID, state machine), control plane in `internal/server` (`/_vara/repositories`), server (`*`) resource scope in `internal/authz`, `vara serve --meta` + `vara repo` CLI; engine untouched |
-| 0020 | Accounts & Sessions | Accepted | ⏳ | Last foundational Platform RFC; durable accounts + sessions + API tokens as persistent RFC-0017 `IdentitySource` impls (argon2id passwords, SHA-256 token hashes, immediate revocation, account/session state machines, `manage-accounts` server-scope); credential store owned by identity layer; not yet implemented |
+| 0020 | Accounts & Sessions | Accepted | ✅ | Durable accounts + sessions + API tokens as persistent RFC-0017 `IdentitySource` impls in `internal/identity` (argon2id via `golang.org/x/crypto`, SHA-256 token hashes, immediate revocation, constant-time login); control plane `/_vara/sessions|tokens|accounts` in `internal/server`; `manage-accounts` server-scope; `vara serve --accounts` + `vara login/logout/token/account`; engine untouched |
 
 ## Commands Implemented
 
@@ -48,8 +48,12 @@ actual codebase implementation.
 | `vara fetch` | RFC-0014 §9.2 | ✅ local + HTTP transport |
 | `vara pull` | RFC-0014 §9.3 | ✅ fast-forward + three-way merge |
 | `vara push` | RFC-0014 §9.4 | ✅ fast-forward check + `--force`; concurrent-push safe (Refs lock); local + HTTP |
-| `vara serve` | RFC-0016 §9 | ✅ HTTP binding v1 (anonymous); `--addr` / `--root` |
+| `vara serve` | RFC-0016/0017/0018/0019/0020 | ✅ HTTP binding + identity/authz/repo-mgmt/accounts; `--addr`/`--root`/`--policy`/`--meta`/`--accounts`/`--basic`/`--bearer` |
 | `vara gc` | RFC-0014 §12 | ✅ reclaim unreferenced objects; `--dry-run` |
+| `vara repo` | RFC-0019 §8 | ✅ create/delete/rename/list/show over the control plane |
+| `vara login` / `logout` | RFC-0020 §8.1 | ✅ session login (prints token once) / logout |
+| `vara token` | RFC-0020 §8.2 | ✅ create/list/revoke API tokens |
+| `vara account` | RFC-0020 §8.3 | ✅ create/disable/delete/passwd (manage-accounts + self) |
 
 ## Performance Benchmarks
 

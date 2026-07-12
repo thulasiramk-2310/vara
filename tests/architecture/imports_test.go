@@ -67,3 +67,28 @@ func TestRepoManagerHasNoUpwardImports(t *testing.T) {
 		}
 	}
 }
+
+// TestDatastoreOwnershipSeparation verifies RFC-0020 S13: each subsystem owns
+// exactly one datastore and never reaches into another's. authz owns policy,
+// repomanager owns metadata, identity owns the credential store — so neither
+// authz nor repomanager may import identity (the store-owning package), and
+// identity may import neither of them.
+func TestDatastoreOwnershipSeparation(t *testing.T) {
+	checks := map[string][]string{
+		module + "/internal/authz":       {module + "/internal/identity", module + "/internal/repomanager"},
+		module + "/internal/repomanager": {module + "/internal/identity"},
+		module + "/internal/identity":    {module + "/internal/authz", module + "/internal/repomanager"},
+	}
+	for pkg, forbid := range checks {
+		out, err := exec.Command("go", "list", "-deps", pkg).CombinedOutput()
+		if err != nil {
+			t.Fatalf("go list -deps %s: %v\n%s", pkg, err, out)
+		}
+		deps := string(out)
+		for _, bad := range forbid {
+			if strings.Contains(deps, bad) {
+				t.Errorf("%s imports %s — violates RFC-0020 S13 (one datastore per subsystem)", pkg, bad)
+			}
+		}
+	}
+}

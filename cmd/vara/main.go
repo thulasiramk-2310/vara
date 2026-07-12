@@ -268,6 +268,11 @@ func main() {
 					cfg.MetaDir = rest[i+1]
 					i++
 				}
+			case "--accounts":
+				if i+1 < len(rest) {
+					cfg.AccountsDir = rest[i+1]
+					i++
+				}
 			case "--basic":
 				if i+1 < len(rest) {
 					user, secret, ok := splitCred(rest[i+1])
@@ -312,6 +317,23 @@ func main() {
 			}
 		}
 		if err := commands.RunRepo(args, cfg); err != nil {
+			die("%v", err)
+		}
+
+	case "login", "logout", "token", "account":
+		acfg, args := parseAuthFlags(rest)
+		var err error
+		switch cmd {
+		case "login":
+			err = commands.RunLogin(args, acfg)
+		case "logout":
+			err = commands.RunLogout(args, acfg)
+		case "token":
+			err = commands.RunToken(args, acfg)
+		case "account":
+			err = commands.RunAccount(args, acfg)
+		}
+		if err != nil {
 			die("%v", err)
 		}
 
@@ -365,6 +387,35 @@ func splitCred(s string) (key, value string, ok bool) {
 	return strings.Cut(s, ":")
 }
 
+// parseAuthFlags pulls --basic/--bearer/--password out of args (RFC-0020 client
+// commands) and returns the credential config plus the remaining positionals.
+func parseAuthFlags(rest []string) (commands.AuthConfig, []string) {
+	var cfg commands.AuthConfig
+	var args []string
+	for i := 0; i < len(rest); i++ {
+		switch rest[i] {
+		case "--basic":
+			if i+1 < len(rest) {
+				cfg.Basic = rest[i+1]
+				i++
+			}
+		case "--bearer":
+			if i+1 < len(rest) {
+				cfg.Bearer = rest[i+1]
+				i++
+			}
+		case "--password", "-p":
+			if i+1 < len(rest) {
+				cfg.Password = rest[i+1]
+				i++
+			}
+		default:
+			args = append(args, rest[i])
+		}
+	}
+	return cfg, args
+}
+
 // die prints a formatted error to stderr and exits.
 func die(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "vara: "+format+"\n", args...)
@@ -396,8 +447,12 @@ Remote commands (RFC-0014):
   serve     Serve repositories over HTTP (RFC-0016)
   gc        Reclaim unreferenced objects
 
-Hub commands (RFC-0019):
+Hub commands (RFC-0019, RFC-0020):
   repo      Manage repositories on a server (create/delete/rename/list/show)
+  login     Log in to a server and obtain a session token
+  logout    Revoke the current session
+  token     Manage API tokens (create/list/revoke)
+  account   Manage accounts (create/disable/delete/passwd)
 
   version   Print VARA version
 
@@ -596,6 +651,12 @@ Repository control plane (RFC-0019):
                             live in <policy>/_server.json. Only Active repos are
                             served on the data plane.
 
+Account control plane (RFC-0020):
+  --accounts ./accounts     enable /_vara/sessions, /_vara/tokens, /_vara/accounts
+                            and durable password/session/token authentication.
+                            Account admin needs the manage-accounts capability on
+                            the server (_server.json). Passwords are argon2id.
+
 With neither identity nor policy configured this is an anonymous, allow-all
 server; do NOT expose that as a write endpoint on an untrusted network. Press
 Ctrl-C to shut down gracefully.
@@ -621,6 +682,37 @@ Credentials (choose one):
 Examples:
   vara repo create http://localhost:8080 myproject --basic alice:s3cret
   vara repo list   http://localhost:8080 --basic alice:s3cret
+`,
+	"login": `usage: vara login <server-url> <username> --password <pw>
+
+Authenticate to a server (RFC-0020) and obtain a session token. The token is
+printed once; use it as '--bearer <token>' on subsequent commands, or as the
+password in an http://user:token@host clone URL.
+
+  vara login http://localhost:8080 alice --password s3cret
+`,
+	"logout": `usage: vara logout <server-url> --bearer <session-token>
+
+Revoke the session identified by the given token immediately (RFC-0020).
+`,
+	"token": `usage: vara token <create|list|revoke> <server-url> [args] [--basic u:s | --bearer t]
+
+Manage your API tokens (RFC-0020). A token carries your account's authority and
+is long-lived until revoked; its secret is shown once at creation.
+
+  vara token create http://localhost:8080 ci-bot --basic alice:s3cret
+  vara token list   http://localhost:8080 --basic alice:s3cret
+  vara token revoke http://localhost:8080 <token-id> --basic alice:s3cret
+`,
+	"account": `usage: vara account <create|disable|delete|passwd> <server-url> <username>
+                    [--password <pw>] [--basic u:s | --bearer t]
+
+Manage accounts (RFC-0020). create/disable/delete need the manage-accounts
+capability on the server; an account may change its own password.
+
+  vara account create  http://localhost:8080 bob --password hunter2 --basic admin:pw
+  vara account passwd   http://localhost:8080 bob --password newpw   --bearer <bob-token>
+  vara account disable  http://localhost:8080 bob --basic admin:pw
 `,
 	"gc": `usage: vara gc [--dry-run]
 

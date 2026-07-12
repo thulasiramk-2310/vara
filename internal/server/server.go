@@ -53,16 +53,21 @@ type Options struct {
 	// M10). nil leaves a bare RFC-0016 transport server that serves by directory
 	// existence exactly as before.
 	Manager *repomanager.Manager
+	// Accounts, when set, enables the RFC-0020 control plane (/_vara/sessions,
+	// /_vara/tokens, /_vara/accounts). The same manager should back the identity
+	// sources in Identity so authentication and administration share one store.
+	Accounts *identity.AccountManager
 }
 
 // Server serves repositories rooted at a single directory.
 type Server struct {
-	root    string
-	idsrc   identity.IdentitySource
-	authz   *authz.Enforcer
-	manager *repomanager.Manager
-	caps    []string
-	methods []string
+	root     string
+	idsrc    identity.IdentitySource
+	authz    *authz.Enforcer
+	manager  *repomanager.Manager
+	accounts *identity.AccountManager
+	caps     []string
+	methods  []string
 }
 
 // Handler returns an anonymous, allow-all handler (RFC-0016 behavior).
@@ -85,13 +90,17 @@ func HandlerWithOptions(root string, opts Options) http.Handler {
 	if opts.Manager != nil {
 		caps = append(caps, "repo-management-v1")
 	}
+	if opts.Accounts != nil {
+		caps = append(caps, "accounts-v1")
+	}
 	s := &Server{
-		root:    root,
-		idsrc:   idsrc,
-		authz:   opts.Authz,
-		manager: opts.Manager,
-		caps:    caps,
-		methods: opts.Methods,
+		root:     root,
+		idsrc:    idsrc,
+		authz:    opts.Authz,
+		manager:  opts.Manager,
+		accounts: opts.Accounts,
+		caps:     caps,
+		methods:  opts.Methods,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{repo}"+protocol.PathInfoRefs, s.handleListRefs)
@@ -110,6 +119,20 @@ func HandlerWithOptions(root string, opts Options) http.Handler {
 		// Reserved v1 routes (RFC-0019 §7.4, §5.4): present but not implemented.
 		mux.HandleFunc("PUT "+protocol.PathRepos+"/{repo}/policy", s.handleReserved)
 		mux.HandleFunc("POST "+protocol.PathRepos+"/{repo}/archive", s.handleReserved)
+	}
+
+	// RFC-0020 account/session/token control plane, only when accounts are
+	// configured. Under the same reserved /_vara/ prefix.
+	if s.accounts != nil {
+		mux.HandleFunc("POST "+protocol.PathSessions, s.handleLogin)
+		mux.HandleFunc("DELETE "+protocol.PathSessions+"/current", s.handleLogout)
+		mux.HandleFunc("POST "+protocol.PathTokens, s.handleCreateToken)
+		mux.HandleFunc("GET "+protocol.PathTokens, s.handleListTokens)
+		mux.HandleFunc("DELETE "+protocol.PathTokens+"/{id}", s.handleRevokeToken)
+		mux.HandleFunc("POST "+protocol.PathAccounts, s.handleCreateAccount)
+		mux.HandleFunc("DELETE "+protocol.PathAccounts+"/{username}", s.handleDeleteAccount)
+		mux.HandleFunc("POST "+protocol.PathAccounts+"/{username}/disable", s.handleDisableAccount)
+		mux.HandleFunc("PUT "+protocol.PathAccounts+"/{username}/password", s.handleSetPassword)
 	}
 	return mux
 }
