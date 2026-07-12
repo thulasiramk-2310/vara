@@ -12,7 +12,7 @@ import (
 	"github.com/thulasiramk-2310/vara/pkg/index"
 )
 
-const version = "0.1.0-alpha"
+const version = "0.2.0"
 
 func main() {
 	if len(os.Args) < 2 {
