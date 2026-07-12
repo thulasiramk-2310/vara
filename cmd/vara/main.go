@@ -263,6 +263,11 @@ func main() {
 					cfg.PolicyDir = rest[i+1]
 					i++
 				}
+			case "--meta", "-m":
+				if i+1 < len(rest) {
+					cfg.MetaDir = rest[i+1]
+					i++
+				}
 			case "--basic":
 				if i+1 < len(rest) {
 					user, secret, ok := splitCred(rest[i+1])
@@ -284,6 +289,29 @@ func main() {
 			}
 		}
 		if err := commands.RunServe(addr, root, cfg); err != nil {
+			die("%v", err)
+		}
+
+	case "repo":
+		var cfg commands.RepoConfig
+		var args []string
+		for i := 0; i < len(rest); i++ {
+			switch rest[i] {
+			case "--basic":
+				if i+1 < len(rest) {
+					cfg.Basic = rest[i+1]
+					i++
+				}
+			case "--bearer":
+				if i+1 < len(rest) {
+					cfg.Bearer = rest[i+1]
+					i++
+				}
+			default:
+				args = append(args, rest[i])
+			}
+		}
+		if err := commands.RunRepo(args, cfg); err != nil {
 			die("%v", err)
 		}
 
@@ -367,6 +395,9 @@ Remote commands (RFC-0014):
   push      Upload local branch commits to a remote
   serve     Serve repositories over HTTP (RFC-0016)
   gc        Reclaim unreferenced objects
+
+Hub commands (RFC-0019):
+  repo      Manage repositories on a server (create/delete/rename/list/show)
 
   version   Print VARA version
 
@@ -534,12 +565,13 @@ The remote rejects a non-fast-forward update unless --force is given:
 
 A rejected push changes nothing on either side.
 `,
-	"serve": `usage: vara serve [--addr <host:port>] [--root <dir>]
-                  [--policy <dir>] [--basic <user:secret>]... [--bearer <token:subject>]...
+	"serve": `usage: vara serve [--addr <host:port>] [--root <dir>] [--policy <dir>]
+                  [--meta <dir>] [--basic <user:secret>]... [--bearer <token:subject>]...
 
 Serve the VARA repositories under <root> (default: current directory) over
 HTTP, implementing the RFC-0016 remote transport protocol (HTTP binding v1),
-with optional identity (RFC-0017) and authorization (RFC-0018).
+with optional identity (RFC-0017), authorization (RFC-0018), and the RFC-0019
+repository control plane.
 
 Each subdirectory of <root> that is a VARA repository is served under its own
 name. Clients clone/fetch/pull/push over http:// URLs:
@@ -557,9 +589,38 @@ Authorization (RFC-0018):
   Policy maps subjects to capabilities: read, create-ref, push, force-push,
   delete-ref. Absent policy = default-deny. 'anonymous' is an ordinary subject.
 
+Repository control plane (RFC-0019):
+  --meta ./meta             enable /_vara/repositories (create/delete/rename/
+                            list). Requires --policy: creation seeds the owner's
+                            policy. Server-scope grants (create-repo, list-repos)
+                            live in <policy>/_server.json. Only Active repos are
+                            served on the data plane.
+
 With neither identity nor policy configured this is an anonymous, allow-all
 server; do NOT expose that as a write endpoint on an untrusted network. Press
 Ctrl-C to shut down gracefully.
+`,
+	"repo": `usage: vara repo <create|delete|rename|list|show> <server-url> [args]
+                 [--basic <user:secret>] [--bearer <token>]
+
+Manage repositories on a VARA server through its RFC-0019 control plane. The
+first argument after the subcommand is always the server base URL.
+
+Subcommands:
+  list    <server-url>                     list repositories (needs list-repos)
+  create  <server-url> <name>              create a repository (needs create-repo)
+          [--visibility private|public] [--description <text>]
+  show    <server-url> <name>              show a repository's descriptor
+  delete  <server-url> <name>              delete a repository (needs delete-repo)
+  rename  <server-url> <name> <new-name>   rename (needs rename-repo + create-repo)
+
+Credentials (choose one):
+  --basic  alice:s3cret     present HTTP Basic
+  --bearer tok123           present a Bearer token
+
+Examples:
+  vara repo create http://localhost:8080 myproject --basic alice:s3cret
+  vara repo list   http://localhost:8080 --basic alice:s3cret
 `,
 	"gc": `usage: vara gc [--dry-run]
 

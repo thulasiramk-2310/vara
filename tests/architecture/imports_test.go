@@ -21,16 +21,20 @@ var enginePackages = []string{
 	"internal/merge", "internal/undo", "internal/transport",
 }
 
-// forbidden are the binding-layer packages the engine must never import.
+// forbidden are the binding-layer packages the engine must never import. The
+// repository manager (RFC-0019) is a binding concern too (M1/M12): no engine or
+// transport package may depend on it.
 var forbidden = []string{
 	module + "/internal/identity",
 	module + "/internal/authz",
+	module + "/internal/repomanager",
 }
 
-// TestEngineDoesNotImportBindingLayers verifies the C1/A1 invariant mechanically:
-// the transitive dependency set of every engine/transport package excludes the
-// identity and authorization packages. If this fails, an engine package has
-// started depending on a binding concern — the abstraction has leaked downward.
+// TestEngineDoesNotImportBindingLayers verifies the C1/A1/M1 invariant
+// mechanically: the transitive dependency set of every engine/transport package
+// excludes the identity, authorization, and repository-management packages. If
+// this fails, an engine package has started depending on a binding concern — the
+// abstraction has leaked downward.
 func TestEngineDoesNotImportBindingLayers(t *testing.T) {
 	for _, pkg := range enginePackages {
 		full := module + "/" + pkg
@@ -41,8 +45,25 @@ func TestEngineDoesNotImportBindingLayers(t *testing.T) {
 		deps := string(out)
 		for _, bad := range forbidden {
 			if strings.Contains(deps, bad) {
-				t.Errorf("%s transitively imports %s — violates RFC-0017 C1 / RFC-0018 A1", full, bad)
+				t.Errorf("%s transitively imports %s — violates RFC-0017 C1 / RFC-0018 A1 / RFC-0019 M1", full, bad)
 			}
+		}
+	}
+}
+
+// TestRepoManagerHasNoUpwardImports verifies RFC-0019 M12: the repository
+// manager depends only downward. It must never import the server or the command
+// layer that drive it — those sit above it in the hierarchy.
+func TestRepoManagerHasNoUpwardImports(t *testing.T) {
+	full := module + "/internal/repomanager"
+	out, err := exec.Command("go", "list", "-deps", full).CombinedOutput()
+	if err != nil {
+		t.Fatalf("go list -deps %s: %v\n%s", full, err, out)
+	}
+	deps := string(out)
+	for _, up := range []string{module + "/internal/server", module + "/internal/commands"} {
+		if strings.Contains(deps, up) {
+			t.Errorf("internal/repomanager transitively imports %s — violates RFC-0019 M12 (no upward imports)", up)
 		}
 	}
 }

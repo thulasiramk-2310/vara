@@ -19,13 +19,16 @@ import (
 
 	"github.com/thulasiramk-2310/vara/internal/authz"
 	"github.com/thulasiramk-2310/vara/internal/identity"
+	"github.com/thulasiramk-2310/vara/internal/repomanager"
 	"github.com/thulasiramk-2310/vara/internal/server"
 )
 
-// ServeConfig configures identity and authorization for `vara serve`. Empty
-// fields leave the server anonymous / allow-all (RFC-0016 behavior).
+// ServeConfig configures identity, authorization, and the repository control
+// plane for `vara serve`. Empty fields leave the server anonymous / allow-all
+// (RFC-0016 behavior).
 type ServeConfig struct {
 	PolicyDir string            // enables authorization (RFC-0018) when set
+	MetaDir   string            // enables the RFC-0019 control plane when set (requires PolicyDir)
 	Basic     map[string]string // user -> secret (RFC-0017 Basic)
 	Bearer    map[string]string // token -> subject (RFC-0017 Bearer)
 }
@@ -46,7 +49,7 @@ func RunServe(addr, root string, cfg ServeConfig) error {
 		return fmt.Errorf("serve: root %q is not a directory", root)
 	}
 
-	opts, err := buildServerOptions(cfg)
+	opts, err := buildServerOptions(cfg, absRoot)
 	if err != nil {
 		return fmt.Errorf("serve: %w", err)
 	}
@@ -78,10 +81,11 @@ func RunServe(addr, root string, cfg ServeConfig) error {
 	}
 }
 
-// buildServerOptions assembles identity and authorization from the config. With
-// no credentials configured the server is anonymous; with a policy directory it
-// enforces authorization (RFC-0018).
-func buildServerOptions(cfg ServeConfig) (server.Options, error) {
+// buildServerOptions assembles identity, authorization, and the control plane
+// from the config. With no credentials the server is anonymous; with a policy
+// directory it enforces authorization (RFC-0018); with a metadata directory it
+// also serves the repository control plane (RFC-0019).
+func buildServerOptions(cfg ServeConfig, absRoot string) (server.Options, error) {
 	var opts server.Options
 
 	var sources []identity.IdentitySource
@@ -100,16 +104,35 @@ func buildServerOptions(cfg ServeConfig) (server.Options, error) {
 		opts.Methods = append(opts.Methods, "auth-anonymous")
 	}
 
+	var absPolicy string
 	if cfg.PolicyDir != "" {
-		absPolicy, err := filepath.Abs(cfg.PolicyDir)
+		p, err := filepath.Abs(cfg.PolicyDir)
 		if err != nil {
 			return opts, fmt.Errorf("resolve policy dir: %w", err)
 		}
-		if fi, err := os.Stat(absPolicy); err != nil || !fi.IsDir() {
+		if fi, err := os.Stat(p); err != nil || !fi.IsDir() {
 			return opts, fmt.Errorf("policy dir %q is not a directory", cfg.PolicyDir)
 		}
+		absPolicy = p
 		store := authz.NewStore(absPolicy)
 		opts.Authz = authz.NewEnforcer(store, log.Default())
+	}
+
+	if cfg.MetaDir != "" {
+		// The control plane seeds ownership as policy (RFC-0019 §7.3), so it
+		// cannot run without a policy store to write to.
+		if absPolicy == "" {
+			return opts, fmt.Errorf("the repository control plane (--meta) requires --policy")
+		}
+		absMeta, err := filepath.Abs(cfg.MetaDir)
+		if err != nil {
+			return opts, fmt.Errorf("resolve metadata dir: %w", err)
+		}
+		mgr, err := repomanager.New(absRoot, absPolicy, absMeta)
+		if err != nil {
+			return opts, err
+		}
+		opts.Manager = mgr
 	}
 	return opts, nil
 }
