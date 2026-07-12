@@ -328,7 +328,7 @@ func main() {
 			os.Exit(1)
 		}
 
-	case "login", "logout", "token", "account":
+	case "login", "logout", "token":
 		acfg, args := parseAuthFlags(rest)
 		var err error
 		switch cmd {
@@ -338,11 +338,23 @@ func main() {
 			err = commands.RunLogout(args, acfg)
 		case "token":
 			err = commands.RunToken(args, acfg)
-		case "account":
-			err = commands.RunAccount(args, acfg)
 		}
 		if err != nil {
 			die("%v", err)
+		}
+
+	case "account":
+		// On-host bootstrap mode (filesystem, no auth) is selected by --accounts;
+		// otherwise this is the HTTP account-admin client.
+		if containsFlag(rest, "--accounts") {
+			if err := commands.RunAccountBootstrap(rest); err != nil {
+				die("%v", err)
+			}
+		} else {
+			acfg, args := parseAuthFlags(rest)
+			if err := commands.RunAccount(args, acfg); err != nil {
+				die("%v", err)
+			}
 		}
 
 	default:
@@ -393,6 +405,16 @@ func loadIndex(varaDir string) *index.Index {
 // splitCred splits a "key:value" credential flag argument at the first colon.
 func splitCred(s string) (key, value string, ok bool) {
 	return strings.Cut(s, ":")
+}
+
+// containsFlag reports whether flag appears in args.
+func containsFlag(args []string, flag string) bool {
+	for _, a := range args {
+		if a == flag {
+			return true
+		}
+	}
+	return false
 }
 
 // parseAuthFlags pulls --basic/--bearer/--password out of args (RFC-0020 client
@@ -715,13 +737,24 @@ is long-lived until revoked; its secret is shown once at creation.
 `,
 	"account": `usage: vara account <create|disable|delete|passwd> <server-url> <username>
                     [--password <pw>] [--basic u:s | --bearer t]
+   or: vara account create --accounts <dir> --username <name> --password <pw>
+                    [--policy <dir>] [--force]        (on-host bootstrap)
 
-Manage accounts (RFC-0020). create/disable/delete need the manage-accounts
-capability on the server; an account may change its own password.
+Manage accounts (RFC-0020). Over HTTP, create/disable/delete need the
+manage-accounts capability on the server; an account may change its own password.
 
   vara account create  http://localhost:8080 bob --password hunter2 --basic admin:pw
   vara account passwd   http://localhost:8080 bob --password newpw   --bearer <bob-token>
   vara account disable  http://localhost:8080 bob --basic admin:pw
+
+On-host bootstrap (RFC-0020 §10b) creates the FIRST admin directly on the
+server's filesystem — no HTTP, no authentication. It refuses if accounts already
+exist (unless --force) and, given --policy, grants the new admin manage-accounts,
+create-repo, and list-repos in <policy>/_server.json. Run this once at install:
+
+  vara account create --accounts /var/lib/vara/accounts \
+                      --policy   /var/lib/vara/policy \
+                      --username admin --password <pw>
 `,
 	"doctor": `usage: vara doctor [<server-url>] [--basic <user:secret> | --bearer <token>]
 
