@@ -25,7 +25,7 @@ actual codebase implementation.
 | 0016 | Remote Transport Protocol (HTTP Binding v1) | Accepted | ✅ | `internal/protocol`, `internal/transport` (HTTPTransport), `internal/server`, `vara serve`; HTTP parity suite green — anonymous v1 |
 | 0017 | Identity & Authentication | Accepted | ✅ | `internal/identity` (Anonymous/Basic/Bearer/Multi); wired into `internal/server` preamble; 401 |
 | 0018 | Authorization & Repository Policy | Accepted | ✅ | `internal/authz` (capability policy, file store, atomic reload); wired into `internal/server`; 403 |
-| 0019 | Repository Management & Ownership | Accepted | ⏳ | First VARA Hub RFC; control-plane lifecycle (create/delete/rename/list), immutable ID + mutable name, three-artifact model, `Creating`/`Active`/`Archived`/`Deleting` state machine, server (`*`) resource scope; `internal/repomanager` not yet built |
+| 0019 | Repository Management & Ownership | Accepted | ✅ | First VARA Hub RFC; `internal/repomanager` (three-artifact atomic lifecycle, immutable ID, state machine), control plane in `internal/server` (`/_vara/repositories`), server (`*`) resource scope in `internal/authz`, `vara serve --meta` + `vara repo` CLI; engine untouched |
 
 ## Commands Implemented
 

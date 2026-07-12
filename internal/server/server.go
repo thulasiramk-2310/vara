@@ -31,6 +31,7 @@ import (
 	"github.com/thulasiramk-2310/vara/internal/authz"
 	"github.com/thulasiramk-2310/vara/internal/identity"
 	"github.com/thulasiramk-2310/vara/internal/protocol"
+	"github.com/thulasiramk-2310/vara/internal/repomanager"
 	"github.com/thulasiramk-2310/vara/internal/transport"
 	"github.com/thulasiramk-2310/vara/pkg/types"
 )
@@ -47,6 +48,11 @@ type Options struct {
 	// Methods are the auth-* capability tokens advertised on info/refs and used
 	// to build WWW-Authenticate (e.g. "auth-basic", "auth-bearer").
 	Methods []string
+	// Manager, when set, enables the RFC-0019 control plane (/_vara/repositories)
+	// and metadata-gates data-plane serving (only Active repositories are served,
+	// M10). nil leaves a bare RFC-0016 transport server that serves by directory
+	// existence exactly as before.
+	Manager *repomanager.Manager
 }
 
 // Server serves repositories rooted at a single directory.
@@ -54,6 +60,7 @@ type Server struct {
 	root    string
 	idsrc   identity.IdentitySource
 	authz   *authz.Enforcer
+	manager *repomanager.Manager
 	caps    []string
 	methods []string
 }
@@ -75,10 +82,14 @@ func HandlerWithOptions(root string, opts Options) http.Handler {
 	if opts.Authz != nil {
 		caps = append(caps, "authz-v1")
 	}
+	if opts.Manager != nil {
+		caps = append(caps, "repo-management-v1")
+	}
 	s := &Server{
 		root:    root,
 		idsrc:   idsrc,
 		authz:   opts.Authz,
+		manager: opts.Manager,
 		caps:    caps,
 		methods: opts.Methods,
 	}
@@ -86,6 +97,20 @@ func HandlerWithOptions(root string, opts Options) http.Handler {
 	mux.HandleFunc("GET /{repo}"+protocol.PathInfoRefs, s.handleListRefs)
 	mux.HandleFunc("POST /{repo}"+protocol.PathFetch, s.handleFetch)
 	mux.HandleFunc("POST /{repo}"+protocol.PathReceive, s.handleReceive)
+
+	// RFC-0019 control plane, only when a manager is configured. Routes live
+	// under the reserved /_vara/ prefix so they never collide with the
+	// data-plane /{repo}/... routes above.
+	if s.manager != nil {
+		mux.HandleFunc("GET "+protocol.PathRepos, s.handleListRepos)
+		mux.HandleFunc("POST "+protocol.PathRepos, s.handleCreateRepo)
+		mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}", s.handleGetRepo)
+		mux.HandleFunc("DELETE "+protocol.PathRepos+"/{repo}", s.handleDeleteRepo)
+		mux.HandleFunc("POST "+protocol.PathRepos+"/{repo}/rename", s.handleRenameRepo)
+		// Reserved v1 routes (RFC-0019 §7.4, §5.4): present but not implemented.
+		mux.HandleFunc("PUT "+protocol.PathRepos+"/{repo}/policy", s.handleReserved)
+		mux.HandleFunc("POST "+protocol.PathRepos+"/{repo}/archive", s.handleReserved)
+	}
 	return mux
 }
 
@@ -240,22 +265,17 @@ func (s *Server) handleReceive(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// begin runs the request preamble: echo headers, check the protocol version,
-// validate the repository name, and AUTHENTICATE. It returns the resolved
-// identity and repo name, or writes an error (426/400/401) and returns ok=false.
-// Authentication happens here, before any transport is opened (RFC-0018 A10).
-func (s *Server) begin(w http.ResponseWriter, r *http.Request) (identity.Identity, string, bool) {
+// authn runs the identity portion of the request preamble: echo headers, check
+// the protocol version, and AUTHENTICATE. It returns the resolved identity, or
+// writes an error (426/401) and returns ok=false. It consults no repository, so
+// both the data plane (per-{repo} routes) and the control plane (which may have
+// no {repo}, e.g. list/create) share one authentication path (RFC-0018 A10).
+func (s *Server) authn(w http.ResponseWriter, r *http.Request) (identity.Identity, bool) {
 	echoHeaders(w, r)
 
 	if v := r.Header.Get(protocol.HeaderProto); v != "" && protocol.Major(v) != protocol.Major(protocol.Version) {
 		writeError(w, http.StatusUpgradeRequired, protocol.CodeUpgrade, "unsupported protocol version "+v)
-		return identity.Identity{}, "", false
-	}
-
-	repo := r.PathValue("repo")
-	if !validRepo(repo) {
-		writeError(w, http.StatusBadRequest, protocol.CodeMalformed, "invalid repository name")
-		return identity.Identity{}, "", false
+		return identity.Identity{}, false
 	}
 
 	// Parse precedes authenticate (RFC-0017 §6.2): a malformed header is a 401
@@ -263,11 +283,27 @@ func (s *Server) begin(w http.ResponseWriter, r *http.Request) (identity.Identit
 	cred, err := identity.ParseHeader(r.Header.Get("Authorization"))
 	if err != nil {
 		s.writeUnauthenticated(w, err)
-		return identity.Identity{}, "", false
+		return identity.Identity{}, false
 	}
 	id, err := s.idsrc.Authenticate(cred)
 	if err != nil {
 		s.writeUnauthenticated(w, err)
+		return identity.Identity{}, false
+	}
+	return id, true
+}
+
+// begin is authn plus data-plane repository-name validation. It returns the
+// resolved identity and repo name, or writes an error (426/400/401) and returns
+// ok=false. Authentication happens before any transport is opened (RFC-0018 A10).
+func (s *Server) begin(w http.ResponseWriter, r *http.Request) (identity.Identity, string, bool) {
+	id, ok := s.authn(w, r)
+	if !ok {
+		return identity.Identity{}, "", false
+	}
+	repo := r.PathValue("repo")
+	if !validRepo(repo) {
+		writeError(w, http.StatusBadRequest, protocol.CodeMalformed, "invalid repository name")
 		return identity.Identity{}, "", false
 	}
 	return id, repo, true
@@ -287,8 +323,15 @@ func (s *Server) authorize(w http.ResponseWriter, id identity.Identity, cap auth
 	return true
 }
 
-// openRepo opens the Local transport for repo, or writes 404.
+// openRepo opens the Local transport for repo, or writes 404. When a manager is
+// configured, serving is metadata-gated (RFC-0019 M10): only an Active repository
+// is served, so a Creating/Deleting/Archived repository is never mistaken for a
+// live one. With no manager, behavior is the bare RFC-0016 directory check.
 func (s *Server) openRepo(w http.ResponseWriter, repo string) (transport.Transport, bool) {
+	if s.manager != nil && !s.manager.Servable(repo) {
+		writeError(w, http.StatusNotFound, protocol.CodeUnknownRepo, "no repository "+repo)
+		return nil, false
+	}
 	tr, err := transport.OpenLocal(filepath.Join(s.root, repo))
 	if err != nil {
 		writeError(w, http.StatusNotFound, protocol.CodeUnknownRepo, "no repository "+repo)

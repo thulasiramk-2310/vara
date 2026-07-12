@@ -54,6 +54,11 @@ const (
 	PathReceive  = "/receive"
 )
 
+// Control-plane base path (RFC-0019 §8.1). The "/_vara/" prefix is reserved so
+// control-plane routes never collide with a data-plane repository route, and no
+// repository may be named with a leading "_" (RFC-0019 §10).
+const PathRepos = "/_vara/repositories"
+
 // Major returns the RFC-major of a protocol version string ("16.1" -> "16").
 func Major(v string) string {
 	major, _, _ := strings.Cut(v, ".")
@@ -117,6 +122,41 @@ type Error struct {
 	Details any    `json:"details,omitempty"`
 }
 
+// --- control-plane DTOs (RFC-0019 §6.1, §8) ---
+
+// RepositoryDescriptor is the metadata a control-plane request returns for a
+// repository (RFC-0019 §6.1). It is descriptive only — it carries no capability
+// grants (those live in policy, RFC-0018). Timestamps are RFC 3339 UTC.
+type RepositoryDescriptor struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Owner       string `json:"owner"`
+	Visibility  string `json:"visibility"`
+	State       string `json:"state"`
+	Description string `json:"description"`
+	Archived    bool   `json:"archived"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
+}
+
+// CreateRepoRequest is the body of POST /_vara/repositories (RFC-0019 §8.1).
+type CreateRepoRequest struct {
+	Name        string `json:"name"`
+	Visibility  string `json:"visibility,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// RenameRepoRequest is the body of POST /_vara/repositories/{repo}/rename.
+type RenameRepoRequest struct {
+	NewName string `json:"new_name"`
+}
+
+// ListReposResponse is the body of GET /_vara/repositories, in stable order
+// (RFC-0019 §5.8).
+type ListReposResponse struct {
+	Repositories []RepositoryDescriptor `json:"repositories"`
+}
+
 // Per-ref result codes (RFC-0016 §8.6).
 const (
 	CodeOK             = "OK"
@@ -136,8 +176,10 @@ const (
 	CodeUpgrade         = "UPGRADE_REQUIRED"
 	CodeLockTimeout     = "LOCK_TIMEOUT"
 	CodeInternal        = "INTERNAL"
-	CodeUnauthenticated = "UNAUTHENTICATED" // RFC-0017 §8.2 — 401
-	CodeUnauthorized    = "UNAUTHORIZED"    // RFC-0018 §8.2 — 403
+	CodeUnauthenticated = "UNAUTHENTICATED"   // RFC-0017 §8.2 — 401
+	CodeUnauthorized    = "UNAUTHORIZED"      // RFC-0018 §8.2 — 403
+	CodeRepoExists      = "REPOSITORY_EXISTS" // RFC-0019 §8.2 — 409
+	CodeNotImplemented  = "NOT_IMPLEMENTED"   // RFC-0019 §8.1 — reserved routes, 501
 )
 
 // CommitHex renders a commit ID as lowercase hex (64 chars; zero -> 64 zeros).
