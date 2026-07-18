@@ -70,21 +70,34 @@ Every package maps to one or more RFC specifications. See [`docs/ARCHITECTURE.md
 
 ## Installation
 
+VARA is a single static binary — no CGO, no runtime dependencies. The same
+`vara` executable is both the client (like `git`) and the self-hosted Hub server.
+
+**Prebuilt binary** (Linux · macOS · Windows, `amd64`/`arm64`) — one line:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/thulasiramk-2310/vara/main/scripts/install.sh | sh
+```
+
+Or grab an archive from the [releases page](https://github.com/thulasiramk-2310/vara/releases)
+and put `vara` on your PATH.
+
+**With the Go toolchain** (Go 1.21+):
+
+```sh
+go install github.com/thulasiramk-2310/vara/cmd/vara@latest
+```
+
+**From source:**
+
 ```sh
 git clone https://github.com/thulasiramk-2310/vara
-cd vara
-go build -o vara ./cmd/vara
-./vara --version
-# 0.2.0
+cd vara && go build -o vara ./cmd/vara
 ```
 
-Or with `go install`:
-
-```sh
-go install github.com/thulasiramk-2310/vara/cmd/vara@v0.2.0
-```
-
-Requires **Go 1.21+**. No CGO, no external build dependencies.
+Verify with `vara --version`. Full install and self-hosting instructions —
+including running your own Hub with Docker — are in
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ---
 
@@ -147,6 +160,25 @@ Result     Repository Healthy
 
 ---
 
+## Run your own Hub
+
+VARA includes a self-hosted Hub — a web UI plus read/management API over your
+repositories, with accounts, sessions, and capability-based authorization.
+
+```sh
+docker compose up -d --build
+docker compose exec hub vara account create \
+  --accounts /data/accounts --policy /data/policy \
+  --username admin --password 'choose-a-strong-password'
+# open http://localhost:8080
+```
+
+Or run the binary directly against a data directory — see
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the data layout, systemd unit, and
+TLS / reverse-proxy setup.
+
+---
+
 ## Performance
 
 Measured on AMD Ryzen 9 8945HS, Windows 11, NTFS, Go 1.23.
@@ -176,10 +208,10 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 | Repository verification (`vara verify`) | ✅ Complete |
 | Three-layer undo (`vara undo`) | ✅ Complete |
 | Remote protocol — clone, fetch, pull, push (local transport, RFC-0014) | ✅ Complete |
-| Network transport (`vara serve`, `vara://`) | 🚧 v0.3 |
+| HTTP transport + self-hosted Hub (`vara serve --hub`) | ✅ Complete |
+| Binary release artifacts (Linux/macOS/Windows) + Docker | ✅ Complete |
 | Pack file format and delta compression | 🚧 v0.3 |
 | AI workflow layer | 🚧 v0.4 |
-| Binary release artifacts | 🚧 Soon |
 
 ---
 

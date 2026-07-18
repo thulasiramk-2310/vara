@@ -69,6 +69,12 @@ have an empty diff across the entire Platform layer.
 
 _The backend Platform foundation (v0.2) is complete, and the first VARA Hub — a read API plus a same-origin web UI — is now live on top of it, still with the engine unchanged._
 
+**Distribution.** VARA ships as a single static binary that is both client and
+Hub server. Releases publish per-platform archives + checksums via GoReleaser on
+every `v*` tag (`.github/workflows/release.yml`), an install script
+(`scripts/install.sh`), and a Docker image / Compose file for self-hosting the
+Hub. See [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ### 📋 Planned
 
 | RFC | Title | Focus |

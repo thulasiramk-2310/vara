@@ -1,0 +1,40 @@
+name: Release
+
+# Cutting a release is a single push of a semver tag:
+#   git tag v0.3.0 && git push origin v0.3.0
+# GoReleaser then cross-compiles every target and attaches the archives +
+# checksums to a GitHub Release named after the tag.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # required to create the GitHub Release
+
+jobs:
+  goreleaser:
+    name: Build & publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so the changelog can be built
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Verify build & tests before releasing
+        run: |
+          go build ./...
+          go test ./... -timeout 120s
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
