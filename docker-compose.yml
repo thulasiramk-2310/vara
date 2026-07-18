@@ -1,0 +1,23 @@
+# Run a self-hosted VARA Hub with one command:
+#
+#   docker compose up -d --build
+#
+# Then bootstrap the first admin account (server is at http://localhost:8080):
+#
+#   docker compose exec hub vara account create \
+#     --accounts /data/accounts --policy /data/policy \
+#     --username admin --password 'choose-a-strong-password'
+#
+# See docs/DEPLOYMENT.md for TLS / reverse-proxy guidance.
+services:
+  hub:
+    build: .
+    image: vara:local
+    ports:
+      - "8080:8080"
+    volumes:
+      - vara-data:/data
+    restart: unless-stopped
+
+volumes:
+  vara-data:

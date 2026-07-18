@@ -12,7 +12,7 @@
 [![CI](https://github.com/thulasiramk-2310/vara/actions/workflows/ci.yml/badge.svg)](https://github.com/thulasiramk-2310/vara/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/go-1.21+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v0.2.0-blue)](https://github.com/thulasiramk-2310/vara/releases/tag/v0.2.0)
+[![Release](https://img.shields.io/badge/release-v0.3.0-blue)](https://github.com/thulasiramk-2310/vara/releases/tag/v0.3.0)
 [![RFC Status](https://img.shields.io/badge/RFCs-20%20accepted-blue)](docs/)
 
 </div>
@@ -70,21 +70,34 @@ Every package maps to one or more RFC specifications. See [`docs/ARCHITECTURE.md
 
 ## Installation
 
+VARA is a single static binary — no CGO, no runtime dependencies. The same
+`vara` executable is both the client (like `git`) and the self-hosted Hub server.
+
+**Prebuilt binary** (Linux · macOS · Windows, `amd64`/`arm64`) — one line:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/thulasiramk-2310/vara/main/scripts/install.sh | sh
+```
+
+Or grab an archive from the [releases page](https://github.com/thulasiramk-2310/vara/releases)
+and put `vara` on your PATH.
+
+**With the Go toolchain** (Go 1.21+):
+
+```sh
+go install github.com/thulasiramk-2310/vara/cmd/vara@latest
+```
+
+**From source:**
+
 ```sh
 git clone https://github.com/thulasiramk-2310/vara
-cd vara
-go build -o vara ./cmd/vara
-./vara --version
-# 0.2.0
+cd vara && go build -o vara ./cmd/vara
 ```
 
-Or with `go install`:
-
-```sh
-go install github.com/thulasiramk-2310/vara/cmd/vara@v0.2.0
-```
-
-Requires **Go 1.21+**. No CGO, no external build dependencies.
+Verify with `vara --version`. Full install and self-hosting instructions —
+including running your own Hub with Docker — are in
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ---
 
@@ -147,6 +160,25 @@ Result     Repository Healthy
 
 ---
 
+## Run your own Hub
+
+VARA includes a self-hosted Hub — a web UI plus read/management API over your
+repositories, with accounts, sessions, and capability-based authorization.
+
+```sh
+docker compose up -d --build
+docker compose exec hub vara account create \
+  --accounts /data/accounts --policy /data/policy \
+  --username admin --password 'choose-a-strong-password'
+# open http://localhost:8080
+```
+
+Or run the binary directly against a data directory — see
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the data layout, systemd unit, and
+TLS / reverse-proxy setup.
+
+---
+
 ## Performance
 
 Measured on AMD Ryzen 9 8945HS, Windows 11, NTFS, Go 1.23.
@@ -165,7 +197,7 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 
 ## Current Status
 
-**v0.2.0** — backend platform complete: engine, HTTP transport, identity, authorization, repository management, and accounts & sessions. See [docs/RELEASE-v0.2.0.md](docs/RELEASE-v0.2.0.md).
+**v0.3.0** — the platform is now installable and self-hostable: prebuilt binaries, a `curl … | sh` installer, and a Docker image for running your own Hub, on top of the complete v0.2 backend (engine, HTTP transport, identity, authorization, repository management, accounts & sessions). See [docs/RELEASE-v0.3.0.md](docs/RELEASE-v0.3.0.md).
 
 | Component | Status |
 |-----------|--------|
@@ -176,10 +208,10 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 | Repository verification (`vara verify`) | ✅ Complete |
 | Three-layer undo (`vara undo`) | ✅ Complete |
 | Remote protocol — clone, fetch, pull, push (local transport, RFC-0014) | ✅ Complete |
-| Network transport (`vara serve`, `vara://`) | 🚧 v0.3 |
+| HTTP transport + self-hosted Hub (`vara serve --hub`) | ✅ Complete |
+| Binary release artifacts (Linux/macOS/Windows) + Docker | ✅ Complete |
 | Pack file format and delta compression | 🚧 v0.3 |
 | AI workflow layer | 🚧 v0.4 |
-| Binary release artifacts | 🚧 Soon |
 
 ---
 
@@ -187,11 +219,11 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 
 | Version | Milestone |
 |---------|-----------|
-| **v0.1** (now) | Local engine — all local commands, RFC-0013, `vara verify` |
-| **v0.2** | Remote protocol — clone, fetch, pull, push over local transport (RFC-0014) ✅ |
-| **v0.3** | Network transport + scale — `vara serve`, delta packs, 100k-file stress tests (RFC-0015/0016) |
-| **v0.4** | AI layer — semantic diff, automated conflict resolution |
-| **v0.5** | VARA Hub alpha — hosted repositories, pull request protocol |
+| **v0.1** | Local engine — all local commands, RFC-0013, `vara verify` ✅ |
+| **v0.2** | Backend platform + Hub — HTTP transport, identity, authorization, repo management, accounts, read API + web UI (RFC-0016–0021) ✅ |
+| **v0.3** (now) | Distribution & self-hosting — prebuilt binaries, install script, Docker Hub image ✅ |
+| **v0.4** | Repository browser, diff viewer, search (RFC-0022–0024) |
+| **v0.5** | Organizations, teams, pull requests & issues |
 | **v1.0** | Stable — frozen wire format, frozen CLI, LTS commitment |
 
 ---

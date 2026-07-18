@@ -39,8 +39,9 @@ have an empty diff across the entire Platform layer.
 | -------- | --------------------------------------------------------- | -------------- |
 | **v0.1** | Engine + Distributed Transport                            | ✅ Complete     |
 | **v0.2** | Hub Backend (Identity, Authorization, Repo Management, Accounts) | ✅ Complete     |
-| **v0.3** | Organizations + Teams + REST API                          | Planned        |
-| **v0.4** | Pull Requests + Issues + Reviews                          | Planned        |
+| **v0.3** | Distribution & Self-Hosting (binaries, install script, Docker)  | ✅ Complete     |
+| **v0.4** | Repository Browser + Diff Viewer + Search                 | Planned        |
+| **v0.5** | Organizations + Teams + Pull Requests + Issues            | Planned        |
 | **v1.0** | Stable Platform                                           | Future         |
 
 ## RFC status
@@ -68,6 +69,12 @@ have an empty diff across the entire Platform layer.
 | 0021 | Hub Read & Management API | `internal/hub` projection, read API + cookie sessions + `vara serve --hub` in `internal/server`, `web/` Hub UI |
 
 _The backend Platform foundation (v0.2) is complete, and the first VARA Hub — a read API plus a same-origin web UI — is now live on top of it, still with the engine unchanged._
+
+**Distribution.** VARA ships as a single static binary that is both client and
+Hub server. Releases publish per-platform archives + checksums via GoReleaser on
+every `v*` tag (`.github/workflows/release.yml`), an install script
+(`scripts/install.sh`), and a Docker image / Compose file for self-hosting the
+Hub. See [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### 📋 Planned
 

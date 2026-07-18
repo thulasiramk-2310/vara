@@ -1,0 +1,14 @@
+# Keep the build context small and reproducible.
+.git
+.github
+bin
+dist
+*.md
+!go.mod
+!go.sum
+docs
+examples
+benchmarks
+tests
+scripts
+*.exe

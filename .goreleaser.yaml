@@ -1,0 +1,67 @@
+# GoReleaser — cross-compiles the `vara` CLI/server and publishes a GitHub
+# Release with per-platform archives and checksums on every `v*` tag.
+# Run locally with:  goreleaser release --snapshot --clean
+# Docs: https://goreleaser.com
+version: 2
+
+project_name: vara
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: vara
+    main: ./cmd/vara
+    binary: vara
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # The version reported by `vara --version` is stamped from the git tag.
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: vara
+    formats: [tar.gz]
+    # Windows users get a .zip instead of a tar.gz.
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - LICENSE
+      - docs/DEPLOYMENT.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-dev"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge "
+
+release:
+  github:
+    owner: thulasiramk-2310
+    name: vara
+  draft: false
+  prerelease: auto
+  name_template: "VARA {{ .Tag }}"
