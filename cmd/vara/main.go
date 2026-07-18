@@ -15,7 +15,7 @@ import (
 // version is the release version. The fallback below is the last tagged
 // release; release builds override it via -ldflags "-X main.version=<tag>"
 // (see .goreleaser.yaml), so a downloaded binary reports its exact release.
-var version = "0.2.0"
+var version = "0.3.0"
 
 func main() {
 	if len(os.Args) < 2 {

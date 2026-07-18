@@ -12,7 +12,7 @@
 [![CI](https://github.com/thulasiramk-2310/vara/actions/workflows/ci.yml/badge.svg)](https://github.com/thulasiramk-2310/vara/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/go-1.21+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v0.2.0-blue)](https://github.com/thulasiramk-2310/vara/releases/tag/v0.2.0)
+[![Release](https://img.shields.io/badge/release-v0.3.0-blue)](https://github.com/thulasiramk-2310/vara/releases/tag/v0.3.0)
 [![RFC Status](https://img.shields.io/badge/RFCs-20%20accepted-blue)](docs/)
 
 </div>
@@ -197,7 +197,7 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 
 ## Current Status
 
-**v0.2.0** — backend platform complete: engine, HTTP transport, identity, authorization, repository management, and accounts & sessions. See [docs/RELEASE-v0.2.0.md](docs/RELEASE-v0.2.0.md).
+**v0.3.0** — the platform is now installable and self-hostable: prebuilt binaries, a `curl … | sh` installer, and a Docker image for running your own Hub, on top of the complete v0.2 backend (engine, HTTP transport, identity, authorization, repository management, accounts & sessions). See [docs/RELEASE-v0.3.0.md](docs/RELEASE-v0.3.0.md).
 
 | Component | Status |
 |-----------|--------|
@@ -219,11 +219,11 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 
 | Version | Milestone |
 |---------|-----------|
-| **v0.1** (now) | Local engine — all local commands, RFC-0013, `vara verify` |
-| **v0.2** | Remote protocol — clone, fetch, pull, push over local transport (RFC-0014) ✅ |
-| **v0.3** | Network transport + scale — `vara serve`, delta packs, 100k-file stress tests (RFC-0015/0016) |
-| **v0.4** | AI layer — semantic diff, automated conflict resolution |
-| **v0.5** | VARA Hub alpha — hosted repositories, pull request protocol |
+| **v0.1** | Local engine — all local commands, RFC-0013, `vara verify` ✅ |
+| **v0.2** | Backend platform + Hub — HTTP transport, identity, authorization, repo management, accounts, read API + web UI (RFC-0016–0021) ✅ |
+| **v0.3** (now) | Distribution & self-hosting — prebuilt binaries, install script, Docker Hub image ✅ |
+| **v0.4** | Repository browser, diff viewer, search (RFC-0022–0024) |
+| **v0.5** | Organizations, teams, pull requests & issues |
 | **v1.0** | Stable — frozen wire format, frozen CLI, LTS commitment |
 
 ---
