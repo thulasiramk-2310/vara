@@ -15,6 +15,11 @@ const esc = (s) =>
 const short = (id) => (id ? id.slice(0, 10) : "");
 const when = (ts) => (ts ? new Date(ts).toLocaleString() : "");
 
+// encPath encodes a browse path for a URL, preserving "/" as segment separators
+// (each segment is individually percent-encoded). "" → "" (the root).
+const encPath = (p) =>
+  String(p || "").split("/").filter(Boolean).map(encodeURIComponent).join("/");
+
 function toast(msg, isErr) {
   const t = document.getElementById("toast");
   t.textContent = msg;
@@ -165,8 +170,29 @@ function repoTabs(name, active) {
   const tab = (id, label) =>
     `<a href="#/r/${encodeURIComponent(name)}${id ? "/" + id : ""}" class="${active === id ? "active" : ""}">${label}</a>`;
   return `<nav id="nav" style="margin-bottom:16px">
-    ${tab("", "Overview")}${tab("history", "History")}${tab("branches", "Branches")}${tab("settings", "Settings")}
+    ${tab("", "Overview")}${tab("tree", "Files")}${tab("history", "History")}${tab("branches", "Branches")}${tab("settings", "Settings")}
   </nav>`;
+}
+
+// crumbs renders a clickable breadcrumb for a browse path. The final segment of a
+// blob path is plain text (you are already viewing it); every other segment links
+// to its tree. Slashes in a path are encoded into one hash segment (encodeURI-
+// Component), which the router decodes back.
+function crumbs(name, path, isBlob) {
+  const enc = encodeURIComponent(name);
+  const out = [`<a href="#/r/${enc}/tree">${esc(name)}</a>`];
+  const segs = String(path || "").split("/").filter(Boolean);
+  let acc = "";
+  segs.forEach((seg, i) => {
+    acc = acc ? acc + "/" + seg : seg;
+    const last = i === segs.length - 1;
+    if (last && isBlob) {
+      out.push(`<span>${esc(seg)}</span>`);
+    } else {
+      out.push(`<a href="#/r/${enc}/tree/${encodeURIComponent(acc)}">${esc(seg)}</a>`);
+    }
+  });
+  return `<div class="crumbs">${out.join(' <span class="sep">/</span> ')}</div>`;
 }
 
 async function viewRepo(name) {
@@ -282,6 +308,59 @@ async function viewSettings(name) {
   };
 }
 
+// viewTree lists a directory (RFC-0022 tree endpoint). Directories sort before
+// files, then by name. A directory links deeper; a file opens the blob view.
+async function viewTree(name, path) {
+  const url = `/_vara/repositories/${encodeURIComponent(name)}/tree/${encPath(path)}`;
+  const data = await api("GET", url);
+  const entries = (data.entries || []).slice().sort((a, b) =>
+    a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1
+  );
+  const rows = entries
+    .map((e) => {
+      const child = path ? path + "/" + e.name : e.name;
+      const kind = e.type === "dir" ? "tree" : "blob";
+      const href = `#/r/${encodeURIComponent(name)}/${kind}/${encodeURIComponent(child)}`;
+      const icon = e.type === "dir" ? "📁" : "📄";
+      return `<tr>
+        <td><a href="${href}">${icon} ${esc(e.name)}</a></td>
+        <td class="mono meta">${esc(e.mode)}</td>
+      </tr>`;
+    })
+    .join("");
+  app.innerHTML = `
+    <h1>${esc(name)}</h1>${repoTabs(name, "tree")}
+    ${crumbs(name, path, false)}
+    <div class="card"><table><tr><th>Name</th><th>Mode</th></tr>
+    ${rows || `<tr><td colspan="2" class="empty">Empty directory.</td></tr>`}</table></div>`;
+}
+
+// viewBlob shows a file (RFC-0022 blob endpoint). Text content is rendered as
+// INERT text inside <pre> via esc() — never as HTML — the client-side mirror of
+// the server's B5 guarantee. Binary or over-cap files link to the raw endpoint
+// (which the server serves inert: text/plain or an attachment, always nosniff).
+async function viewBlob(name, path) {
+  const enc = encodeURIComponent(name);
+  const data = await api("GET", `/_vara/repositories/${enc}/blob/${encPath(path)}`);
+  const rawHref = `/_vara/repositories/${enc}/raw/${encPath(path)}`;
+  let body;
+  if (data.binary) {
+    body = `<div class="empty">Binary file (${data.size} bytes) — <a href="${rawHref}">download</a>.</div>`;
+  } else if (data.truncated) {
+    body = `<div class="empty">File too large to display inline (${data.size} bytes) — <a href="${rawHref}">download raw</a>.</div>`;
+  } else {
+    body = `<pre class="blob">${esc(data.content || "")}</pre>`;
+  }
+  app.innerHTML = `
+    <h1>${esc(name)}</h1>${repoTabs(name, "tree")}
+    ${crumbs(name, path, true)}
+    <div class="actions" style="margin:0 0 10px">
+      <a class="chip" href="${rawHref}">Raw</a>
+      <span class="meta">${data.size} bytes</span>
+    </div>
+    <div class="card">${body}</div>`;
+}
+
 // --- router ------------------------------------------------------------------
 
 function route() {
@@ -291,6 +370,8 @@ function route() {
   if (parts[0] === "r" && parts[1]) {
     const name = parts[1];
     const tab = parts[2] || "";
+    if (tab === "tree") return guard(() => viewTree(name, parts[3] || ""));
+    if (tab === "blob") return guard(() => viewBlob(name, parts[3] || ""));
     if (tab === "history") return guard(() => viewHistory(name));
     if (tab === "branches") return guard(() => viewBranches(name));
     if (tab === "settings") return guard(() => viewSettings(name));
