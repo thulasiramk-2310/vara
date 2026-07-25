@@ -279,6 +279,44 @@ type RepositorySummary struct {
 	LastCommit    *CommitSummary `json:"last_commit,omitempty"`
 }
 
+// --- Hub browse API DTOs (RFC-0022 §10) ---
+
+// TreeEntryInfo is one entry of a tree listing (RFC-0022 §5.1). Type is "dir" or
+// "file", derived from the mode; the octal Mode still distinguishes a regular file
+// (100644) from an executable (100755). A listing deliberately omits per-entry
+// size (it would cost one blob read each, §5.1) — clients read size from Blob.
+type TreeEntryInfo struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+	Mode string `json:"mode"`
+	ID   string `json:"id"`
+}
+
+// TreeResponse is the body of GET .../tree/{path} (RFC-0022 §5.1). Commit is the
+// resolved commit id; entries are in tree (name) order.
+type TreeResponse struct {
+	Ref     string          `json:"ref"`
+	Commit  string          `json:"commit"`
+	Path    string          `json:"path"`
+	Entries []TreeEntryInfo `json:"entries"`
+}
+
+// BlobResponse is the body of GET .../blob/{path} (RFC-0022 §5.2). Content is
+// present only for a file that is inline-eligible: NUL-free, valid UTF-8, and
+// within the inline cap. Otherwise Binary and/or Truncated is set, Encoding is
+// "binary", Content is empty, and the client fetches the bytes from .../raw.
+type BlobResponse struct {
+	Ref       string `json:"ref"`
+	Commit    string `json:"commit"`
+	Path      string `json:"path"`
+	ID        string `json:"id"`
+	Size      int    `json:"size"`
+	Binary    bool   `json:"binary"`
+	Encoding  string `json:"encoding"`
+	Content   string `json:"content,omitempty"`
+	Truncated bool   `json:"truncated"`
+}
+
 // WhoamiResponse reports the caller's resolved identity (RFC-0020 §8.5). With a
 // ?repo=<name> query it also reports which capabilities the identity holds on
 // that resource — a read-only view of the RFC-0018 decision, for debugging
@@ -317,6 +355,7 @@ const (
 	CodeAccountExists   = "ACCOUNT_EXISTS"    // RFC-0020 §8.4 — 409
 	CodeNotFound        = "NOT_FOUND"         // RFC-0020 §8.4 — 404
 	CodeRateLimited     = "RATE_LIMITED"      // RFC-0021 §10.3 — 429
+	CodeTooLarge        = "TOO_LARGE"         // RFC-0022 §10 — 413 (raw over hard ceiling)
 )
 
 // CommitHex renders a commit ID as lowercase hex (64 chars; zero -> 64 zeros).

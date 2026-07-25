@@ -103,3 +103,13 @@ label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px
 .empty { color: var(--muted); text-align: center; padding: 30px; }
 .commit-msg { font-weight: 500; }
 .commit-id { font-family: var(--mono); color: var(--muted); font-size: 13px; }
+
+.crumbs { margin: 0 0 12px; font-size: 14px; }
+.crumbs .sep { color: var(--muted); }
+.crumbs span:not(.sep) { color: var(--text); font-weight: 600; }
+pre.blob {
+  margin: 0; padding: 14px 16px; overflow-x: auto;
+  font-family: var(--mono); font-size: 13px; line-height: 1.55;
+  white-space: pre; tab-size: 4;
+}
+.card:has(> pre.blob) { padding: 0; }

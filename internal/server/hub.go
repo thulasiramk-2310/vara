@@ -108,7 +108,16 @@ func (s *Server) handleRepoCommits(w http.ResponseWriter, r *http.Request) {
 		before = c
 	}
 
-	commits, next, err := h.Commits(q.Get("ref"), limit, before)
+	// RFC-0022 §5.4: an optional `path` filters history to commits that changed
+	// that path (a file's history). Without it, RFC-0021 behavior is unchanged.
+	var commits []hub.Commit
+	var next types.CommitID
+	var err error
+	if path := q.Get("path"); path != "" {
+		commits, next, err = h.CommitsForPath(q.Get("ref"), path, limit, before)
+	} else {
+		commits, next, err = h.Commits(q.Get("ref"), limit, before)
+	}
 	switch err {
 	case nil:
 	case hub.ErrNotFound:
@@ -123,7 +132,7 @@ func (s *Server) handleRepoCommits(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := protocol.CommitsResponse{Commits: make([]protocol.CommitSummary, 0, len(commits)), Next: hexOrEmpty(next)}
-	tag := []string{repo, "commits", q.Get("ref"), resp.Next}
+	tag := []string{repo, "commits", q.Get("ref"), q.Get("path"), resp.Next}
 	for _, c := range commits {
 		cs := commitSummaryOf(c)
 		resp.Commits = append(resp.Commits, cs)

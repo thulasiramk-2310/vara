@@ -145,6 +145,14 @@ func HandlerWithOptions(root string, opts Options) http.Handler {
 	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/commits", s.handleRepoCommits)
 	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/commits/{id}", s.handleRepoCommit)
 
+	// RFC-0022 browse API — tree/blob/raw content reads + a path filter on the
+	// commits endpoint above. The {path...} wildcards are scoped under the literal
+	// tree/blob/raw prefixes, so the fixed segments above (summary/branches/commits)
+	// win by ServeMux most-specific-wins routing; the catch-alls never shadow them.
+	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/tree/{path...}", s.handleRepoTree)
+	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/blob/{path...}", s.handleRepoBlob)
+	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/raw/{path...}", s.handleRepoRaw)
+
 	// RFC-0019 control plane, only when a manager is configured. Routes live
 	// under the reserved /_vara/ prefix so they never collide with the
 	// data-plane /{repo}/... routes above.
