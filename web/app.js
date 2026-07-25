@@ -69,11 +69,25 @@ async function api(method, path, body) {
   const resp = await fetch(path, opts);
   if (resp.status === 204) return null;
   const text = await resp.text();
-  const data = text ? JSON.parse(text) : null;
+  const ct = resp.headers.get("content-type") || "";
+  // Parse JSON only when the body actually is JSON. An API route that isn't
+  // enabled on this server falls through to the static handler, which returns
+  // index.html — parsing that as JSON would throw a cryptic "Unexpected token
+  // '<'". Treat a non-JSON 200 as "endpoint unavailable" instead.
+  let data = null;
+  if (text && (ct.includes("json") || text.trimStart()[0] === "{")) {
+    try { data = JSON.parse(text); } catch { data = null; }
+  }
   if (!resp.ok) {
-    const err = new Error((data && data.message) || resp.statusText);
+    const err = new Error((data && data.message) || resp.statusText || `HTTP ${resp.status}`);
     err.status = resp.status;
     err.code = data && data.code;
+    throw err;
+  }
+  if (data === null && text && !ct.includes("json")) {
+    const err = new Error("This feature isn't enabled on this server.");
+    err.status = 0;
+    err.code = "UNAVAILABLE";
     throw err;
   }
   return data;
@@ -89,6 +103,8 @@ async function guard(loader) {
       location.hash = "#/login";
     } else if (e.status === 403) {
       app.innerHTML = `<div class="card empty">You don't have permission to view this (${esc(e.code || "forbidden")}).</div>`;
+    } else if (e.code === "UNAVAILABLE") {
+      app.innerHTML = `<div class="card empty">${ICON.repo(28)}${esc(e.message)}</div>`;
     } else {
       app.innerHTML = `<div class="card empty">Error: ${esc(e.message)}</div>`;
     }
