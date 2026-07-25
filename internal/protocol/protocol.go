@@ -317,6 +317,62 @@ type BlobResponse struct {
 	Truncated bool   `json:"truncated"`
 }
 
+// --- Hub diff API DTOs (RFC-0023 §10) ---
+
+// DiffFileInfo is one entry of a diff summary (RFC-0023 §5.1): a changed file's
+// path, its status (added/deleted/modified; renamed reserved), and — only when a
+// rename is detected (future) — its old path. It deliberately carries no line
+// counts or binary flag: the summary is a pure DiffTrees projection (no blob
+// reads); those live on the per-file diff (§5.2).
+type DiffFileInfo struct {
+	Path    string `json:"path"`
+	OldPath string `json:"old_path,omitempty"`
+	Status  string `json:"status"`
+}
+
+// DiffSummaryResponse is the body of GET .../diff (RFC-0023 §5.1). base_commit and
+// head_commit echo the resolved commit ids that were compared.
+type DiffSummaryResponse struct {
+	Base       string         `json:"base"`
+	Head       string         `json:"head"`
+	BaseCommit string         `json:"base_commit"`
+	HeadCommit string         `json:"head_commit"`
+	Files      []DiffFileInfo `json:"files"`
+	Truncated  bool           `json:"truncated"`
+}
+
+// DiffLineInfo is one line of a hunk (RFC-0023 §5.2): type is context/add/del;
+// content is inert line data, never a rendered document (§7/D4).
+type DiffLineInfo struct {
+	Type    string `json:"type"`
+	Content string `json:"content"`
+}
+
+// DiffHunk is a contiguous region of a file diff with classic @@ coordinates.
+type DiffHunk struct {
+	OldStart int            `json:"old_start"`
+	OldLines int            `json:"old_lines"`
+	NewStart int            `json:"new_start"`
+	NewLines int            `json:"new_lines"`
+	Header   string         `json:"header"`
+	Lines    []DiffLineInfo `json:"lines"`
+}
+
+// FileDiffResponse is the body of GET .../diff/{path} (RFC-0023 §5.2). Hunks are
+// present only for a text file within the caps; a binary or over-cap file has
+// empty hunks with Binary/Truncated set (§7).
+type FileDiffResponse struct {
+	Base      string     `json:"base"`
+	Head      string     `json:"head"`
+	Path      string     `json:"path"`
+	Status    string     `json:"status"`
+	Binary    bool       `json:"binary"`
+	Additions int        `json:"additions"`
+	Deletions int        `json:"deletions"`
+	Hunks     []DiffHunk `json:"hunks"`
+	Truncated bool       `json:"truncated"`
+}
+
 // WhoamiResponse reports the caller's resolved identity (RFC-0020 §8.5). With a
 // ?repo=<name> query it also reports which capabilities the identity holds on
 // that resource — a read-only view of the RFC-0018 decision, for debugging

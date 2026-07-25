@@ -153,6 +153,12 @@ func HandlerWithOptions(root string, opts Options) http.Handler {
 	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/blob/{path...}", s.handleRepoBlob)
 	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/raw/{path...}", s.handleRepoRaw)
 
+	// RFC-0023 diff API — a changed-file summary, a per-file unified diff, and a
+	// commit-diff convenience (base = first parent). Additive, same `read` cap.
+	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/diff", s.handleRepoDiffSummary)
+	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/diff/{path...}", s.handleRepoFileDiff)
+	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/commits/{id}/diff", s.handleRepoCommitDiff)
+
 	// RFC-0019 control plane, only when a manager is configured. Routes live
 	// under the reserved /_vara/ prefix so they never collide with the
 	// data-plane /{repo}/... routes above.
