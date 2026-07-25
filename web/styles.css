@@ -258,6 +258,31 @@ label { display: block; font-size: 13px; font-weight: 500; color: var(--text); m
 /* legacy inline text (fallback) */
 pre.blob { margin: 0; padding: 14px 16px; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.55; white-space: pre; tab-size: 4; }
 
+/* --- diff view ------------------------------------------------------------ */
+
+.diff-file { margin-bottom: 12px; }
+.diff-file-head:hover { background: var(--surface-hover); }
+.chip.diff-status { text-transform: capitalize; }
+.chip.diff-status.added { color: var(--success); border-color: color-mix(in srgb, var(--success) 40%, transparent); }
+.chip.diff-status.deleted { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+a.difflink { color: var(--text); }
+a.difflink:hover { color: var(--accent); }
+
+.diff { overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
+.diff-row { display: flex; white-space: pre; min-width: max-content; }
+.diff-row.hunk { background: var(--surface-2); color: var(--accent); }
+.diff-row.add { background: rgba(46, 160, 67, 0.16); }
+.diff-row.del { background: rgba(248, 81, 73, 0.16); }
+.diff-ln {
+  flex: none; width: 3em; padding: 0 8px; text-align: right;
+  color: var(--faint); user-select: none; -webkit-user-select: none;
+}
+.diff-row.hunk .diff-ln { color: var(--accent); }
+.diff-sign { display: inline-block; width: 1.2em; color: var(--muted); }
+.diff-code { padding-right: 16px; }
+.diff-row.add .diff-sign { color: var(--success); }
+.diff-row.del .diff-sign { color: var(--danger); }
+
 /* --- commit rows ---------------------------------------------------------- */
 
 .commit-msg { font-weight: 500; color: var(--text); }

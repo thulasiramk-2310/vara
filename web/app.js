@@ -50,6 +50,33 @@ function renderCode(content) {
   return `<div class="code">${rows}</div>`;
 }
 
+// diffStatusChip renders a colored status pill for a changed file.
+function diffStatusChip(status) {
+  return `<span class="chip diff-status ${esc(status)}">${esc(status)}</span>`;
+}
+
+// renderFileDiff turns a FileDiffResponse into a line-numbered unified diff. Every
+// line is escaped — diff content is inert, never HTML (the client mirror of D4).
+function renderFileDiff(fd) {
+  if (fd.binary) return `<div class="empty">${ICON.binary(24)}Binary file — no textual diff.</div>`;
+  if (fd.truncated) return `<div class="empty">Diff too large to display inline.</div>`;
+  if (!fd.hunks || !fd.hunks.length) return `<div class="empty">No changes.</div>`;
+  let rows = "";
+  for (const hk of fd.hunks) {
+    rows += `<div class="diff-row hunk"><span class="diff-ln"></span><span class="diff-ln"></span><span class="diff-code">${esc(hk.header)}</span></div>`;
+    let oldNo = hk.old_start;
+    let newNo = hk.new_start;
+    for (const ln of hk.lines) {
+      let o = "", n = "", sign = " ", cls = "ctx";
+      if (ln.type === "add") { n = newNo++; sign = "+"; cls = "add"; }
+      else if (ln.type === "del") { o = oldNo++; sign = "-"; cls = "del"; }
+      else { o = oldNo++; n = newNo++; }
+      rows += `<div class="diff-row ${cls}"><span class="diff-ln">${o}</span><span class="diff-ln">${n}</span><span class="diff-code"><span class="diff-sign">${sign}</span>${esc(ln.content) || " "}</span></div>`;
+    }
+  }
+  return `<div class="diff">${rows}</div>`;
+}
+
 function toast(msg, isErr) {
   const t = document.getElementById("toast");
   t.textContent = msg;
@@ -260,7 +287,7 @@ async function viewRepo(name) {
       last
         ? `<h2>Latest commit</h2><div class="card">
              <div class="commit-msg">${esc(last.message.split("\n")[0])}</div>
-             <div class="meta" style="margin-top:6px"><span class="commit-id">${esc(short(last.id))}</span> · ${esc(last.author)} · ${esc(when(last.timestamp))}</div>
+             <div class="meta" style="margin-top:6px"><a class="commit-id" href="#/r/${encodeURIComponent(name)}/commit/${last.id}">${esc(short(last.id))}</a> · ${esc(last.author)} · ${esc(when(last.timestamp))}</div>
            </div>`
         : `<div class="card empty">This repository is empty.</div>`
     }
@@ -281,8 +308,8 @@ async function viewHistory(name) {
     const rows = seen
       .map(
         (c) => `<tr>
-          <td><span class="commit-msg">${esc(c.message.split("\n")[0])}</span></td>
-          <td><span class="chip mono">${esc(short(c.id))}</span></td>
+          <td><a class="commit-msg difflink" href="#/r/${encodeURIComponent(name)}/commit/${c.id}">${esc(c.message.split("\n")[0])}</a></td>
+          <td><a class="chip mono" href="#/r/${encodeURIComponent(name)}/commit/${c.id}">${esc(short(c.id))}</a></td>
           <td class="meta">${esc(c.author)}</td>
           <td class="meta">${esc(when(c.timestamp))}</td>
         </tr>`
@@ -413,6 +440,63 @@ async function viewBlob(name, path) {
     </div>`;
 }
 
+// viewCommit shows what a commit did (RFC-0023): a header, the changed-file
+// summary, and each file's unified diff, lazy-loaded on expand.
+async function viewCommit(name, id) {
+  const enc = encodeURIComponent(name);
+  const detail = await api("GET", `/_vara/repositories/${enc}/commits/${encodeURIComponent(id)}`);
+  const summary = await api("GET", `/_vara/repositories/${enc}/commits/${encodeURIComponent(id)}/diff`);
+  const files = summary.files || [];
+  const list = files
+    .map(
+      (f, i) => `
+      <div class="card pad0 diff-file">
+        <div class="file-head diff-file-head" data-i="${i}" data-path="${esc(f.path)}">
+          <span class="rowicon">${ICON.file()}</span>
+          <span class="fname">${esc(f.path)}</span>
+          <span class="spacer"></span>${diffStatusChip(f.status)}
+        </div>
+        <div class="diff-body" id="db-${i}" hidden></div>
+      </div>`
+    )
+    .join("");
+  app.innerHTML = `
+    <div class="page-head">${ICON.repo(20)}<h1>${esc(name)}</h1></div>${repoTabs(name, "history")}
+    <div class="card">
+      <div class="commit-msg">${esc(detail.message.split("\n")[0])}</div>
+      <div class="meta" style="margin-top:6px"><span class="commit-id">${esc(short(detail.id))}</span> · ${esc(detail.author)} · ${esc(when(detail.timestamp))}</div>
+    </div>
+    <h2>${files.length} changed file${files.length === 1 ? "" : "s"}</h2>
+    ${list || `<div class="card empty">No changes.</div>`}`;
+
+  app.querySelectorAll(".diff-file-head").forEach((head) => {
+    head.style.cursor = "pointer";
+    head.onclick = async () => {
+      const i = head.getAttribute("data-i");
+      const path = head.getAttribute("data-path");
+      const body = document.getElementById("db-" + i);
+      if (!body.hidden) {
+        body.hidden = true;
+        return;
+      }
+      if (!body.dataset.loaded) {
+        body.innerHTML = `<div class="empty">Loading…</div>`;
+        body.hidden = false;
+        try {
+          const q = `head=${encodeURIComponent(id)}&base=${encodeURIComponent(summary.base_commit)}`;
+          const fd = await api("GET", `/_vara/repositories/${enc}/diff/${encPath(path)}?${q}`);
+          body.innerHTML = renderFileDiff(fd);
+          body.dataset.loaded = "1";
+        } catch (e) {
+          body.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+        }
+        return;
+      }
+      body.hidden = false;
+    };
+  });
+}
+
 // --- router ------------------------------------------------------------------
 
 function route() {
@@ -425,6 +509,7 @@ function route() {
     if (tab === "tree") return guard(() => viewTree(name, parts[3] || ""));
     if (tab === "blob") return guard(() => viewBlob(name, parts[3] || ""));
     if (tab === "history") return guard(() => viewHistory(name));
+    if (tab === "commit") return guard(() => viewCommit(name, parts[3] || ""));
     if (tab === "branches") return guard(() => viewBranches(name));
     if (tab === "settings") return guard(() => viewSettings(name));
     return guard(() => viewRepo(name));
