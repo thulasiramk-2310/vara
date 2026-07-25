@@ -25,6 +25,7 @@ import (
 var (
 	ErrNotFound  = errors.New("not found")
 	ErrBadCursor = errors.New("invalid cursor")
+	ErrTooLarge  = errors.New("too large") // RFC-0023 §7 — a diff input over the hard ceiling
 )
 
 const branchPrefix = "refs/heads/"
@@ -119,7 +120,16 @@ func (r *Repo) resolveStart(ref string) (types.CommitID, error) {
 		return id, nil
 	}
 	// Try as a short branch name.
-	return r.refs.Resolve(branchPrefix + ref)
+	if id, err := r.refs.Resolve(branchPrefix + ref); err == nil {
+		return id, nil
+	}
+	// Fall back to a raw commit id (RFC-0021/0022 §6: a ref may be a commit id).
+	if raw, err := types.ParseHex(ref); err == nil {
+		if _, ok := r.readCommit(types.CommitID(raw)); ok {
+			return types.CommitID(raw), nil
+		}
+	}
+	return types.CommitID{}, ErrNotFound
 }
 
 // Commits returns up to limit commits reachable from ref (default HEAD) in graph
