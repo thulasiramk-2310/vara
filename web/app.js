@@ -20,6 +20,36 @@ const when = (ts) => (ts ? new Date(ts).toLocaleString() : "");
 const encPath = (p) =>
   String(p || "").split("/").filter(Boolean).map(encodeURIComponent).join("/");
 
+// Structural icons are inline SVG (Lucide-style, inheriting currentColor) — never
+// emoji, so they stay crisp, themeable, and consistent. aria-hidden: decorative.
+const svgWrap = (size, inner) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+const ICON = {
+  logo: (s = 20) => svgWrap(s, '<circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/><path d="M12 12v3"/>'),
+  folder: (s = 16) => svgWrap(s, '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>'),
+  file: (s = 16) => svgWrap(s, '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>'),
+  repo: (s = 16) => svgWrap(s, '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>'),
+  branch: (s = 16) => svgWrap(s, '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>'),
+  commit: (s = 16) => svgWrap(s, '<circle cx="12" cy="12" r="3"/><line x1="3" x2="9" y1="12" y2="12"/><line x1="15" x2="21" y1="12" y2="12"/>'),
+  clock: (s = 16) => svgWrap(s, '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
+  binary: (s = 16) => svgWrap(s, '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/>'),
+};
+
+// renderCode turns file text into a line-numbered, INERT code view: each line is
+// escaped, so content is never treated as HTML — the client-side mirror of the
+// server's B5 guarantee.
+function renderCode(content) {
+  const lines = String(content ?? "").split("\n");
+  if (lines.length > 1 && lines[lines.length - 1] === "") lines.pop(); // trailing newline
+  const rows = lines
+    .map(
+      (ln, i) =>
+        `<div class="code-row"><span class="code-ln">${i + 1}</span><span class="code-lc">${esc(ln) || " "}</span></div>`
+    )
+    .join("");
+  return `<div class="code">${rows}</div>`;
+}
+
 function toast(msg, isErr) {
   const t = document.getElementById("toast");
   t.textContent = msg;
@@ -39,11 +69,25 @@ async function api(method, path, body) {
   const resp = await fetch(path, opts);
   if (resp.status === 204) return null;
   const text = await resp.text();
-  const data = text ? JSON.parse(text) : null;
+  const ct = resp.headers.get("content-type") || "";
+  // Parse JSON only when the body actually is JSON. An API route that isn't
+  // enabled on this server falls through to the static handler, which returns
+  // index.html — parsing that as JSON would throw a cryptic "Unexpected token
+  // '<'". Treat a non-JSON 200 as "endpoint unavailable" instead.
+  let data = null;
+  if (text && (ct.includes("json") || text.trimStart()[0] === "{")) {
+    try { data = JSON.parse(text); } catch { data = null; }
+  }
   if (!resp.ok) {
-    const err = new Error((data && data.message) || resp.statusText);
+    const err = new Error((data && data.message) || resp.statusText || `HTTP ${resp.status}`);
     err.status = resp.status;
     err.code = data && data.code;
+    throw err;
+  }
+  if (data === null && text && !ct.includes("json")) {
+    const err = new Error("This feature isn't enabled on this server.");
+    err.status = 0;
+    err.code = "UNAVAILABLE";
     throw err;
   }
   return data;
@@ -59,6 +103,8 @@ async function guard(loader) {
       location.hash = "#/login";
     } else if (e.status === 403) {
       app.innerHTML = `<div class="card empty">You don't have permission to view this (${esc(e.code || "forbidden")}).</div>`;
+    } else if (e.code === "UNAVAILABLE") {
+      app.innerHTML = `<div class="card empty">${ICON.repo(28)}${esc(e.message)}</div>`;
     } else {
       app.innerHTML = `<div class="card empty">Error: ${esc(e.message)}</div>`;
     }
@@ -80,7 +126,8 @@ async function refreshWhoami() {
   if (me && !me.anonymous) {
     topbar.hidden = false;
     nav.innerHTML = `<a href="#/">Repositories</a>`;
-    wa.innerHTML = `<b>${esc(me.id)}</b> · <a href="#" id="logout">log out</a>`;
+    const initial = esc((me.id || "?").slice(0, 1));
+    wa.innerHTML = `<span class="avatar">${initial}</span><b>${esc(me.id)}</b> · <a href="#" id="logout">Sign out</a>`;
     document.getElementById("logout").onclick = async (ev) => {
       ev.preventDefault();
       try {
@@ -101,7 +148,7 @@ function viewLogin() {
   topbar.hidden = true;
   app.innerHTML = `
     <div class="login-wrap">
-      <h1 class="center">VARA Hub</h1>
+      <div class="brand-lg">${ICON.logo(34)}<h1 style="margin:0">VARA Hub</h1></div>
       <p class="sub center">Sign in to continue</p>
       <div class="card">
         <label>Username</label><input id="u" autofocus />
@@ -135,11 +182,12 @@ async function viewDashboard() {
         .map(
           (r) => `
       <div class="card row">
+        <span class="rowicon dir">${ICON.repo(20)}</span>
         <div class="grow">
           <a class="repo-name" href="#/r/${encodeURIComponent(r.name)}">${esc(r.name)}</a>
           <div class="meta">${esc(r.visibility)} · owner ${esc(r.owner)}</div>
         </div>
-        <span class="chip">${esc(r.state)}</span>
+        <span class="chip state">${esc(r.state)}</span>
       </div>`
         )
         .join("")
@@ -199,25 +247,24 @@ async function viewRepo(name) {
   const s = await api("GET", `/_vara/repositories/${encodeURIComponent(name)}/summary`);
   const last = s.last_commit;
   app.innerHTML = `
-    <h1>${esc(name)}</h1>
-    <p class="sub">${esc(s.id || "")}</p>
+    <div class="page-head">${ICON.repo(20)}<h1>${esc(name)}</h1></div>
+    <p class="sub mono">${esc(s.id || "")}</p>
     ${repoTabs(name, "")}
-    <div class="card">
-      <table>
-        <tr><th>Default branch</th><td>${esc(s.default_branch || "—")}</td></tr>
-        <tr><th>HEAD</th><td class="mono">${esc(short(s.head)) || "—"}</td></tr>
-        <tr><th>Commits</th><td>${s.commit_count}</td></tr>
-        <tr><th>Branches</th><td>${s.branch_count}</td></tr>
-      </table>
+    <div class="stats">
+      <div class="stat"><div class="k">${ICON.branch(13)} Default branch</div><div class="v mono">${esc(s.default_branch || "—")}</div></div>
+      <div class="stat"><div class="k">HEAD</div><div class="v mono">${esc(short(s.head)) || "—"}</div></div>
+      <div class="stat"><div class="k">${ICON.commit(13)} Commits</div><div class="v">${s.commit_count}</div></div>
+      <div class="stat"><div class="k">${ICON.branch(13)} Branches</div><div class="v">${s.branch_count}</div></div>
     </div>
     ${
       last
         ? `<h2>Latest commit</h2><div class="card">
-             <div class="commit-msg">${esc(last.message)}</div>
-             <div class="meta"><span class="commit-id">${esc(short(last.id))}</span> · ${esc(last.author)} · ${esc(when(last.timestamp))}</div>
+             <div class="commit-msg">${esc(last.message.split("\n")[0])}</div>
+             <div class="meta" style="margin-top:6px"><span class="commit-id">${esc(short(last.id))}</span> · ${esc(last.author)} · ${esc(when(last.timestamp))}</div>
            </div>`
-        : ""
-    }`;
+        : `<div class="card empty">This repository is empty.</div>`
+    }
+    <div class="actions" style="margin-top:4px"><a class="btn" href="#/r/${encodeURIComponent(name)}/tree">Browse files</a></div>`;
 }
 
 async function viewHistory(name) {
@@ -234,18 +281,18 @@ async function viewHistory(name) {
     const rows = seen
       .map(
         (c) => `<tr>
-          <td class="commit-msg">${esc(c.message.split("\n")[0])}</td>
-          <td class="commit-id">${esc(short(c.id))}</td>
+          <td><span class="commit-msg">${esc(c.message.split("\n")[0])}</span></td>
+          <td><span class="chip mono">${esc(short(c.id))}</span></td>
           <td class="meta">${esc(c.author)}</td>
           <td class="meta">${esc(when(c.timestamp))}</td>
         </tr>`
       )
       .join("");
     app.innerHTML = `
-      <h1>${esc(name)}</h1>${repoTabs(name, "history")}
-      <div class="card">
-        <table><tr><th>Message</th><th>Commit</th><th>Author</th><th>When</th></tr>
-        ${rows || `<tr><td colspan="4" class="empty">No commits.</td></tr>`}</table>
+      <div class="page-head">${ICON.repo(20)}<h1>${esc(name)}</h1></div>${repoTabs(name, "history")}
+      <div class="card pad0">
+        <table><thead><tr><th>Message</th><th>Commit</th><th>Author</th><th>When</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="4" class="empty">${ICON.commit(28)}No commits.</td></tr>`}</tbody></table>
       </div>
       ${before ? `<div class="actions"><button id="more">Load more</button></div>` : ""}`;
     const m = document.getElementById("more");
@@ -259,20 +306,20 @@ async function viewBranches(name) {
   const rows = (data.branches || [])
     .map(
       (b) => `<tr>
-        <td>${esc(b.name)} ${b.is_head ? '<span class="chip head">HEAD</span>' : ""}</td>
-        <td class="commit-id">${esc(short(b.target))}</td>
+        <td><span class="rowlink"><span class="rowicon">${ICON.branch()}</span>${esc(b.name)}</span> ${b.is_head ? '<span class="chip head">HEAD</span>' : ""}</td>
+        <td><span class="chip mono">${esc(short(b.target))}</span></td>
       </tr>`
     )
     .join("");
   app.innerHTML = `
-    <h1>${esc(name)}</h1>${repoTabs(name, "branches")}
-    <div class="card"><table><tr><th>Branch</th><th>Target</th></tr>
-    ${rows || `<tr><td colspan="2" class="empty">No branches.</td></tr>`}</table></div>`;
+    <div class="page-head">${ICON.repo(20)}<h1>${esc(name)}</h1></div>${repoTabs(name, "branches")}
+    <div class="card pad0"><table><thead><tr><th>Branch</th><th>Target</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="2" class="empty">${ICON.branch(28)}No branches.</td></tr>`}</tbody></table></div>`;
 }
 
 async function viewSettings(name) {
   app.innerHTML = `
-    <h1>${esc(name)}</h1>${repoTabs(name, "settings")}
+    <div class="page-head">${ICON.repo(20)}<h1>${esc(name)}</h1></div>${repoTabs(name, "settings")}
     <div class="card">
       <label>Rename repository</label>
       <div class="actions" style="margin-top:4px">
@@ -321,18 +368,18 @@ async function viewTree(name, path) {
       const child = path ? path + "/" + e.name : e.name;
       const kind = e.type === "dir" ? "tree" : "blob";
       const href = `#/r/${encodeURIComponent(name)}/${kind}/${encodeURIComponent(child)}`;
-      const icon = e.type === "dir" ? "📁" : "📄";
+      const icon = e.type === "dir" ? `<span class="rowicon dir">${ICON.folder()}</span>` : `<span class="rowicon">${ICON.file()}</span>`;
       return `<tr>
-        <td><a href="${href}">${icon} ${esc(e.name)}</a></td>
-        <td class="mono meta">${esc(e.mode)}</td>
+        <td><a class="rowlink" href="${href}">${icon}<span class="name">${esc(e.name)}</span></a></td>
+        <td class="mono meta num">${esc(e.mode)}</td>
       </tr>`;
     })
     .join("");
   app.innerHTML = `
-    <h1>${esc(name)}</h1>${repoTabs(name, "tree")}
+    <div class="page-head">${ICON.repo(20)}<h1>${esc(name)}</h1></div>${repoTabs(name, "tree")}
     ${crumbs(name, path, false)}
-    <div class="card"><table><tr><th>Name</th><th>Mode</th></tr>
-    ${rows || `<tr><td colspan="2" class="empty">Empty directory.</td></tr>`}</table></div>`;
+    <div class="card pad0"><table><thead><tr><th>Name</th><th class="num">Mode</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="2" class="empty">${ICON.folder(28)}Empty directory.</td></tr>`}</tbody></table></div>`;
 }
 
 // viewBlob shows a file (RFC-0022 blob endpoint). Text content is rendered as
@@ -343,22 +390,27 @@ async function viewBlob(name, path) {
   const enc = encodeURIComponent(name);
   const data = await api("GET", `/_vara/repositories/${enc}/blob/${encPath(path)}`);
   const rawHref = `/_vara/repositories/${enc}/raw/${encPath(path)}`;
+  const fname = esc(path.split("/").pop());
   let body;
   if (data.binary) {
-    body = `<div class="empty">Binary file (${data.size} bytes) — <a href="${rawHref}">download</a>.</div>`;
+    body = `<div class="empty">${ICON.binary(28)}Binary file (${data.size} bytes) — <a href="${rawHref}">download</a>.</div>`;
   } else if (data.truncated) {
-    body = `<div class="empty">File too large to display inline (${data.size} bytes) — <a href="${rawHref}">download raw</a>.</div>`;
+    body = `<div class="empty">${ICON.file(28)}File too large to display inline (${data.size} bytes) — <a href="${rawHref}">download raw</a>.</div>`;
   } else {
-    body = `<pre class="blob">${esc(data.content || "")}</pre>`;
+    body = renderCode(data.content || "");
   }
   app.innerHTML = `
-    <h1>${esc(name)}</h1>${repoTabs(name, "tree")}
+    <div class="page-head">${ICON.repo(20)}<h1>${esc(name)}</h1></div>${repoTabs(name, "tree")}
     ${crumbs(name, path, true)}
-    <div class="actions" style="margin:0 0 10px">
-      <a class="chip" href="${rawHref}">Raw</a>
-      <span class="meta">${data.size} bytes</span>
-    </div>
-    <div class="card">${body}</div>`;
+    <div class="card pad0">
+      <div class="file-head">
+        <span class="fname">${ICON.file(15)}${fname}</span>
+        <span class="spacer"></span>
+        <span class="fmeta">${data.size} bytes</span>
+        <a class="chip" href="${rawHref}">Raw</a>
+      </div>
+      ${body}
+    </div>`;
 }
 
 // --- router ------------------------------------------------------------------
