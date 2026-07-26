@@ -335,6 +335,13 @@ a.difflink:hover { color: var(--accent); }
 .search-note {
   color: var(--muted); font-size: 13px; padding: 6px 2px 10px;
 }
+.search-count {
+  color: var(--muted); font-size: 13px; font-weight: 500; padding: 4px 2px 10px;
+}
+mark {
+  background: color-mix(in srgb, var(--warning) 34%, var(--surface));
+  color: var(--text); border-radius: 3px; padding: 0 1px;
+}
 #sresults .diff-file { margin-top: 12px; }
 #sresults .file-head .fname { color: var(--text); }
 #sresults .file-head a.fname:hover { color: var(--accent); text-decoration: none; }

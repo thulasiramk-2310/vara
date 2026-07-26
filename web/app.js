@@ -20,6 +20,31 @@ const when = (ts) => (ts ? new Date(ts).toLocaleString() : "");
 const encPath = (p) =>
   String(p || "").split("/").filter(Boolean).map(encodeURIComponent).join("/");
 
+// hl escapes text and wraps every case-insensitive occurrence of q in <mark>. It
+// splits on the RAW text and escapes each piece, so the highlight never breaks
+// escaping — content stays inert (S4) while the match is emphasized.
+function hl(text, q) {
+  const s = String(text ?? "");
+  if (!q) return esc(s) || " ";
+  const lc = s.toLowerCase();
+  const lq = q.toLowerCase();
+  let out = "";
+  let i = 0;
+  for (;;) {
+    const j = lc.indexOf(lq, i);
+    if (j < 0) {
+      out += esc(s.slice(i));
+      break;
+    }
+    out += esc(s.slice(i, j)) + `<mark>${esc(s.slice(j, j + q.length))}</mark>`;
+    i = j + q.length;
+  }
+  return out || " ";
+}
+
+// countNote renders a small summary line above search results.
+const countNote = (text) => `<div class="search-count">${esc(text)}</div>`;
+
 // Structural icons are inline SVG (Lucide-style, inheriting currentColor) — never
 // emoji, so they stay crisp, themeable, and consistent. aria-hidden: decorative.
 const svgWrap = (size, inner) =>
@@ -502,33 +527,31 @@ async function viewCommit(name, id) {
 // mode toggle, and results rendered inert (matched lines and paths are escaped —
 // the client mirror of S4). The three modes map to search/content, search/paths,
 // and search/commits. Query state lives in the input, not the URL.
-async function viewSearch(name) {
+async function viewSearch(name, mode0, query0) {
   const enc = encodeURIComponent(name);
+  const modes = ["content", "paths", "commits"];
+  let mode = modes.includes(mode0) ? mode0 : "content";
+  const q0 = query0 || "";
+  const seg = (m, label) => `<button data-m="${m}" class="${m === mode ? "active" : ""}">${label}</button>`;
   app.innerHTML = `
     <div class="page-head">${ICON.repo(20)}<h1>${esc(name)}</h1></div>${repoTabs(name, "search")}
     <div class="card search-bar">
       <span class="rowicon">${ICON.search(18)}</span>
-      <input id="sq" placeholder="Search this repository…" autofocus />
-      <div class="seg" id="smode">
-        <button data-m="content" class="active">Content</button>
-        <button data-m="paths">Files</button>
-        <button data-m="commits">Commits</button>
-      </div>
+      <input id="sq" placeholder="Search this repository…" value="${esc(q0)}" autofocus />
+      <div class="seg" id="smode">${seg("content", "Content")}${seg("paths", "Files")}${seg("commits", "Commits")}</div>
       <button class="primary" id="sgo">Search</button>
     </div>
     <div id="sresults"></div>`;
-  let mode = "content";
-  const seg = document.getElementById("smode");
-  seg.querySelectorAll("button").forEach((b) => {
-    b.onclick = () => {
-      mode = b.getAttribute("data-m");
-      seg.querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b));
-      if (document.getElementById("sq").value.trim()) run();
-    };
-  });
+  // Reflect the current search in the URL (shareable / refresh-safe) without
+  // re-rendering the view: replaceState updates the hash but fires no hashchange.
+  const syncURL = (q) => {
+    const h = q ? `#/r/${enc}/search/${mode}/${encodeURIComponent(q)}` : `#/r/${enc}/search`;
+    history.replaceState(null, "", h);
+  };
   const run = async () => {
     const q = document.getElementById("sq").value.trim();
     const box = document.getElementById("sresults");
+    syncURL(q);
     if (!q) {
       box.innerHTML = "";
       return;
@@ -536,44 +559,56 @@ async function viewSearch(name) {
     box.innerHTML = `<div class="card empty">Searching…</div>`;
     try {
       const data = await api("GET", `/_vara/repositories/${enc}/search/${mode}?q=${encodeURIComponent(q)}`);
-      box.innerHTML = renderSearch(name, mode, data);
+      box.innerHTML = renderSearch(name, mode, q, data);
     } catch (e) {
       box.innerHTML = `<div class="card empty">${esc(e.message)}</div>`;
     }
   };
+  document.getElementById("smode").querySelectorAll("button").forEach((b) => {
+    b.onclick = () => {
+      mode = b.getAttribute("data-m");
+      b.parentElement.querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b));
+      if (document.getElementById("sq").value.trim()) run();
+      else syncURL("");
+    };
+  });
   document.getElementById("sgo").onclick = run;
   document.getElementById("sq").addEventListener("keydown", (e) => e.key === "Enter" && run());
+  if (q0) run(); // deep-linked search runs immediately
 }
 
 // truncatedNote renders the "results were capped" hint (RFC-0024 §7).
 const truncatedNote = (d) =>
   d.truncated ? `<div class="search-note">Showing partial results — refine your query for more.</div>` : "";
 
-function renderSearch(name, mode, data) {
+// plural returns "N noun" / "N nouns".
+const plural = (n, noun) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
+function renderSearch(name, mode, query, data) {
   const matches = data.matches || [];
-  if (mode === "commits") return renderSearchCommits(name, matches, data);
-  if (mode === "paths") return renderSearchPaths(name, matches, data);
-  return renderSearchContent(name, matches, data);
+  if (mode === "commits") return renderSearchCommits(name, matches, query, data);
+  if (mode === "paths") return renderSearchPaths(name, matches, query, data);
+  return renderSearchContent(name, matches, query, data);
 }
 
-function renderSearchCommits(name, matches, data) {
+function renderSearchCommits(name, matches, query, data) {
   const enc = encodeURIComponent(name);
   if (!matches.length) return `<div class="card empty">${ICON.commit(28)}No matching commits.</div>`;
   const rows = matches
     .map(
       (c) => `<tr>
-        <td><a class="commit-msg difflink" href="#/r/${enc}/commit/${c.id}">${esc(c.message.split("\n")[0])}</a></td>
+        <td><a class="commit-msg difflink" href="#/r/${enc}/commit/${c.id}">${hl(c.message.split("\n")[0], query)}</a></td>
         <td><a class="chip mono" href="#/r/${enc}/commit/${c.id}">${esc(short(c.id))}</a></td>
-        <td class="meta">${esc(c.author)}</td>
+        <td class="meta">${hl(c.author, query)}</td>
         <td class="meta">${esc(when(c.timestamp))}</td>
       </tr>`
     )
     .join("");
-  return `${truncatedNote(data)}<div class="card pad0"><table><thead><tr><th>Message</th><th>Commit</th><th>Author</th><th>When</th></tr></thead>
+  return `${countNote(plural(matches.length, "commit"))}${truncatedNote(data)}<div class="card pad0"><table><thead><tr><th>Message</th><th>Commit</th><th>Author</th><th>When</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
 
-function renderSearchPaths(name, matches, data) {
+function renderSearchPaths(name, matches, query, data) {
   const enc = encodeURIComponent(name);
   if (!matches.length) return `<div class="card empty">${ICON.file(28)}No matching files.</div>`;
   const rows = matches
@@ -581,23 +616,26 @@ function renderSearchPaths(name, matches, data) {
       const kind = m.is_dir ? "tree" : "blob";
       const icon = m.is_dir ? `<span class="rowicon dir">${ICON.folder()}</span>` : `<span class="rowicon">${ICON.file()}</span>`;
       return `<tr>
-        <td><a class="rowlink" href="#/r/${enc}/${kind}/${encodeURIComponent(m.path)}">${icon}<span class="name">${esc(m.path)}</span></a></td>
+        <td><a class="rowlink" href="#/r/${enc}/${kind}/${encodeURIComponent(m.path)}">${icon}<span class="name">${hl(m.path, query)}</span></a></td>
         <td class="mono meta num">${esc(m.mode)}</td>
       </tr>`;
     })
     .join("");
-  return `${truncatedNote(data)}<div class="card pad0"><table><thead><tr><th>Path</th><th class="num">Mode</th></tr></thead>
+  return `${countNote(plural(matches.length, "file"))}${truncatedNote(data)}<div class="card pad0"><table><thead><tr><th>Path</th><th class="num">Mode</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
 
-function renderSearchContent(name, matches, data) {
+function renderSearchContent(name, matches, query, data) {
   const enc = encodeURIComponent(name);
   if (!matches.length) return `<div class="card empty">${ICON.search(28)}No matching lines.</div>`;
+  let total = 0;
   const files = matches
     .map((m) => {
+      const n = (m.lines || []).length;
+      total += n;
       const rows = (m.lines || [])
         .map(
-          (l) => `<div class="code-row"><span class="code-ln">${l.line}</span><span class="code-lc">${esc(l.content) || " "}</span></div>`
+          (l) => `<div class="code-row"><span class="code-ln">${l.line}</span><span class="code-lc">${hl(l.content, query)}</span></div>`
         )
         .join("");
       return `<div class="card pad0 diff-file">
@@ -605,13 +643,13 @@ function renderSearchContent(name, matches, data) {
           <span class="rowicon">${ICON.file()}</span>
           <a class="fname" href="#/r/${enc}/blob/${encodeURIComponent(m.path)}">${esc(m.path)}</a>
           <span class="spacer"></span>
-          <span class="fmeta">${(m.lines || []).length} line${(m.lines || []).length === 1 ? "" : "s"}</span>
+          <span class="fmeta">${plural(n, "line")}</span>
         </div>
         <div class="code">${rows}</div>
       </div>`;
     })
     .join("");
-  return `${truncatedNote(data)}${files}`;
+  return `${countNote(`${plural(total, "line")} in ${plural(matches.length, "file")}`)}${truncatedNote(data)}${files}`;
 }
 
 // --- router ------------------------------------------------------------------
@@ -627,7 +665,7 @@ function route() {
     if (tab === "blob") return guard(() => viewBlob(name, parts[3] || ""));
     if (tab === "history") return guard(() => viewHistory(name));
     if (tab === "commit") return guard(() => viewCommit(name, parts[3] || ""));
-    if (tab === "search") return guard(() => viewSearch(name));
+    if (tab === "search") return guard(() => viewSearch(name, parts[3] || "", parts[4] || ""));
     if (tab === "branches") return guard(() => viewBranches(name));
     if (tab === "settings") return guard(() => viewSettings(name));
     return guard(() => viewRepo(name));
