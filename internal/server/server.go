@@ -159,6 +159,13 @@ func HandlerWithOptions(root string, opts Options) http.Handler {
 	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/diff/{path...}", s.handleRepoFileDiff)
 	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/commits/{id}/diff", s.handleRepoCommitDiff)
 
+	// RFC-0024 search API — commit (message/author), path (file name), and content
+	// (grep) search, all live bounded scans. Scoped under the literal search/
+	// prefix, so they never shadow tree/blob/raw/diff/commits. Same `read` cap.
+	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/search/commits", s.handleRepoSearchCommits)
+	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/search/paths", s.handleRepoSearchPaths)
+	mux.HandleFunc("GET "+protocol.PathRepos+"/{repo}/search/content", s.handleRepoSearchContent)
+
 	// RFC-0019 control plane, only when a manager is configured. Routes live
 	// under the reserved /_vara/ prefix so they never collide with the
 	// data-plane /{repo}/... routes above.
