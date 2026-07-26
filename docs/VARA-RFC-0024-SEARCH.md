@@ -152,9 +152,9 @@ listing (§5.1 there) this costs **tree reads only, never a blob read**: it matc
 names, not content, so it is cheap. Each match carries the entry's `path`, object
 `blob` id (content address), raw `mode`, and `is_dir`. The walk is bounded by an
 **entry budget** and the result list by `limit` (§7); over either, `truncated` is
-`true`. Matches are returned in ascending path (byte) order — the walk sorts each
-directory's entries, so the ordering holds regardless of how a tree object happens
-to store them.
+`true`. Matches are returned **sorted by path** (ascending byte order), independent
+of how a tree object happens to store its entries, so the result order is stable
+across requests.
 
 ## 5.3 Content search (grep over text files)
 
@@ -172,7 +172,7 @@ is skipped** if it is binary (a NUL byte or invalid UTF-8, §7) or larger than t
 `truncated:true` with the partial results. Each match lists the file `path`, its
 `blob` id, and up to the per-file line cap of matching `lines`, each a `line`
 number (1-based) and the inert `content` of that line (no surrounding context in
-v1, §14). Files are returned in ascending path order; a binary or oversize file is
+v1, §14). Files are returned **sorted by path**; a binary or oversize file is
 simply absent (it is not an error and not reported as a match).
 
 # 6. Query Semantics & Resolution
