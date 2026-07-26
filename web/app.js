@@ -33,6 +33,7 @@ const ICON = {
   commit: (s = 16) => svgWrap(s, '<circle cx="12" cy="12" r="3"/><line x1="3" x2="9" y1="12" y2="12"/><line x1="15" x2="21" y1="12" y2="12"/>'),
   clock: (s = 16) => svgWrap(s, '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
   binary: (s = 16) => svgWrap(s, '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/>'),
+  search: (s = 16) => svgWrap(s, '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'),
 };
 
 // renderCode turns file text into a line-numbered, INERT code view: each line is
@@ -245,7 +246,7 @@ function repoTabs(name, active) {
   const tab = (id, label) =>
     `<a href="#/r/${encodeURIComponent(name)}${id ? "/" + id : ""}" class="${active === id ? "active" : ""}">${label}</a>`;
   return `<nav id="nav" style="margin-bottom:16px">
-    ${tab("", "Overview")}${tab("tree", "Files")}${tab("history", "History")}${tab("branches", "Branches")}${tab("settings", "Settings")}
+    ${tab("", "Overview")}${tab("tree", "Files")}${tab("history", "History")}${tab("search", "Search")}${tab("branches", "Branches")}${tab("settings", "Settings")}
   </nav>`;
 }
 
@@ -497,6 +498,122 @@ async function viewCommit(name, id) {
   });
 }
 
+// viewSearch is the RFC-0024 search page: a query box, a Content/Files/Commits
+// mode toggle, and results rendered inert (matched lines and paths are escaped —
+// the client mirror of S4). The three modes map to search/content, search/paths,
+// and search/commits. Query state lives in the input, not the URL.
+async function viewSearch(name) {
+  const enc = encodeURIComponent(name);
+  app.innerHTML = `
+    <div class="page-head">${ICON.repo(20)}<h1>${esc(name)}</h1></div>${repoTabs(name, "search")}
+    <div class="card search-bar">
+      <span class="rowicon">${ICON.search(18)}</span>
+      <input id="sq" placeholder="Search this repository…" autofocus />
+      <div class="seg" id="smode">
+        <button data-m="content" class="active">Content</button>
+        <button data-m="paths">Files</button>
+        <button data-m="commits">Commits</button>
+      </div>
+      <button class="primary" id="sgo">Search</button>
+    </div>
+    <div id="sresults"></div>`;
+  let mode = "content";
+  const seg = document.getElementById("smode");
+  seg.querySelectorAll("button").forEach((b) => {
+    b.onclick = () => {
+      mode = b.getAttribute("data-m");
+      seg.querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b));
+      if (document.getElementById("sq").value.trim()) run();
+    };
+  });
+  const run = async () => {
+    const q = document.getElementById("sq").value.trim();
+    const box = document.getElementById("sresults");
+    if (!q) {
+      box.innerHTML = "";
+      return;
+    }
+    box.innerHTML = `<div class="card empty">Searching…</div>`;
+    try {
+      const data = await api("GET", `/_vara/repositories/${enc}/search/${mode}?q=${encodeURIComponent(q)}`);
+      box.innerHTML = renderSearch(name, mode, data);
+    } catch (e) {
+      box.innerHTML = `<div class="card empty">${esc(e.message)}</div>`;
+    }
+  };
+  document.getElementById("sgo").onclick = run;
+  document.getElementById("sq").addEventListener("keydown", (e) => e.key === "Enter" && run());
+}
+
+// truncatedNote renders the "results were capped" hint (RFC-0024 §7).
+const truncatedNote = (d) =>
+  d.truncated ? `<div class="search-note">Showing partial results — refine your query for more.</div>` : "";
+
+function renderSearch(name, mode, data) {
+  const matches = data.matches || [];
+  if (mode === "commits") return renderSearchCommits(name, matches, data);
+  if (mode === "paths") return renderSearchPaths(name, matches, data);
+  return renderSearchContent(name, matches, data);
+}
+
+function renderSearchCommits(name, matches, data) {
+  const enc = encodeURIComponent(name);
+  if (!matches.length) return `<div class="card empty">${ICON.commit(28)}No matching commits.</div>`;
+  const rows = matches
+    .map(
+      (c) => `<tr>
+        <td><a class="commit-msg difflink" href="#/r/${enc}/commit/${c.id}">${esc(c.message.split("\n")[0])}</a></td>
+        <td><a class="chip mono" href="#/r/${enc}/commit/${c.id}">${esc(short(c.id))}</a></td>
+        <td class="meta">${esc(c.author)}</td>
+        <td class="meta">${esc(when(c.timestamp))}</td>
+      </tr>`
+    )
+    .join("");
+  return `${truncatedNote(data)}<div class="card pad0"><table><thead><tr><th>Message</th><th>Commit</th><th>Author</th><th>When</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+function renderSearchPaths(name, matches, data) {
+  const enc = encodeURIComponent(name);
+  if (!matches.length) return `<div class="card empty">${ICON.file(28)}No matching files.</div>`;
+  const rows = matches
+    .map((m) => {
+      const kind = m.is_dir ? "tree" : "blob";
+      const icon = m.is_dir ? `<span class="rowicon dir">${ICON.folder()}</span>` : `<span class="rowicon">${ICON.file()}</span>`;
+      return `<tr>
+        <td><a class="rowlink" href="#/r/${enc}/${kind}/${encodeURIComponent(m.path)}">${icon}<span class="name">${esc(m.path)}</span></a></td>
+        <td class="mono meta num">${esc(m.mode)}</td>
+      </tr>`;
+    })
+    .join("");
+  return `${truncatedNote(data)}<div class="card pad0"><table><thead><tr><th>Path</th><th class="num">Mode</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+function renderSearchContent(name, matches, data) {
+  const enc = encodeURIComponent(name);
+  if (!matches.length) return `<div class="card empty">${ICON.search(28)}No matching lines.</div>`;
+  const files = matches
+    .map((m) => {
+      const rows = (m.lines || [])
+        .map(
+          (l) => `<div class="code-row"><span class="code-ln">${l.line}</span><span class="code-lc">${esc(l.content) || " "}</span></div>`
+        )
+        .join("");
+      return `<div class="card pad0 diff-file">
+        <div class="file-head">
+          <span class="rowicon">${ICON.file()}</span>
+          <a class="fname" href="#/r/${enc}/blob/${encodeURIComponent(m.path)}">${esc(m.path)}</a>
+          <span class="spacer"></span>
+          <span class="fmeta">${(m.lines || []).length} line${(m.lines || []).length === 1 ? "" : "s"}</span>
+        </div>
+        <div class="code">${rows}</div>
+      </div>`;
+    })
+    .join("");
+  return `${truncatedNote(data)}${files}`;
+}
+
 // --- router ------------------------------------------------------------------
 
 function route() {
@@ -510,6 +627,7 @@ function route() {
     if (tab === "blob") return guard(() => viewBlob(name, parts[3] || ""));
     if (tab === "history") return guard(() => viewHistory(name));
     if (tab === "commit") return guard(() => viewCommit(name, parts[3] || ""));
+    if (tab === "search") return guard(() => viewSearch(name));
     if (tab === "branches") return guard(() => viewBranches(name));
     if (tab === "settings") return guard(() => viewSettings(name));
     return guard(() => viewRepo(name));
