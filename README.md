@@ -12,8 +12,8 @@
 [![CI](https://github.com/thulasiramk-2310/vara/actions/workflows/ci.yml/badge.svg)](https://github.com/thulasiramk-2310/vara/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/go-1.21+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v0.3.0-blue)](https://github.com/thulasiramk-2310/vara/releases/tag/v0.3.0)
-[![RFC Status](https://img.shields.io/badge/RFCs-20%20accepted-blue)](docs/)
+[![Release](https://img.shields.io/badge/release-v0.4.0-blue)](https://github.com/thulasiramk-2310/vara/releases/tag/v0.4.0)
+[![RFC Status](https://img.shields.io/badge/RFCs-24%20accepted-blue)](docs/)
 
 </div>
 
@@ -197,7 +197,7 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 
 ## Current Status
 
-**v0.3.0** — the platform is now installable and self-hostable: prebuilt binaries, a `curl … | sh` installer, and a Docker image for running your own Hub, on top of the complete v0.2 backend (engine, HTTP transport, identity, authorization, repository management, accounts & sessions). See [docs/RELEASE-v0.3.0.md](docs/RELEASE-v0.3.0.md).
+**v0.4.0** — the Hub can now read a repository the way a code host does: browse the file tree, read files, view a commit's diff, and **search** commits, file names, and content — all as thin, read-only projections over the unchanged engine. Built on the installable, self-hostable v0.3 platform. See [docs/RELEASE-v0.4.0.md](docs/RELEASE-v0.4.0.md).
 
 | Component | Status |
 |-----------|--------|
@@ -210,8 +210,9 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 | Remote protocol — clone, fetch, pull, push (local transport, RFC-0014) | ✅ Complete |
 | HTTP transport + self-hosted Hub (`vara serve --hub`) | ✅ Complete |
 | Binary release artifacts (Linux/macOS/Windows) + Docker | ✅ Complete |
-| Pack file format and delta compression | 🚧 v0.3 |
-| AI workflow layer | 🚧 v0.4 |
+| Hub read UI — browser, diff viewer, search (RFC-0022–0024) | ✅ Complete |
+| Pack file format and delta compression | 🚧 later |
+| AI workflow layer | 🚧 later |
 
 ---
 
@@ -221,8 +222,8 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 |---------|-----------|
 | **v0.1** | Local engine — all local commands, RFC-0013, `vara verify` ✅ |
 | **v0.2** | Backend platform + Hub — HTTP transport, identity, authorization, repo management, accounts, read API + web UI (RFC-0016–0021) ✅ |
-| **v0.3** (now) | Distribution & self-hosting — prebuilt binaries, install script, Docker Hub image ✅ |
-| **v0.4** | Repository browser, diff viewer, search (RFC-0022–0024) |
+| **v0.3** | Distribution & self-hosting — prebuilt binaries, install script, Docker Hub image ✅ |
+| **v0.4** (now) | Hub read UI — repository browser, diff viewer, search (RFC-0022–0024) ✅ |
 | **v0.5** | Organizations, teams, pull requests & issues |
 | **v1.0** | Stable — frozen wire format, frozen CLI, LTS commitment |
 
