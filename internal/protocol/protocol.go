@@ -373,6 +373,63 @@ type FileDiffResponse struct {
 	Truncated bool       `json:"truncated"`
 }
 
+// --- Hub search API DTOs (RFC-0024 §10) ---
+
+// SearchCommitsResponse is the body of GET .../search/commits (RFC-0024 §5.1).
+// Matches reuse the RFC-0021 CommitSummary shape. Next is the resume cursor (a
+// raw-walk id); Truncated is set when the traversal budget ended the scan.
+type SearchCommitsResponse struct {
+	Query     string          `json:"query"`
+	Ref       string          `json:"ref"`
+	RefCommit string          `json:"ref_commit"`
+	Matches   []CommitSummary `json:"matches"`
+	Next      string          `json:"next,omitempty"`
+	Truncated bool            `json:"truncated"`
+}
+
+// PathMatch is one matching tree entry (RFC-0024 §5.2): its full path, object id,
+// git-style octal mode, and whether it is a directory. It costs no blob read.
+type PathMatch struct {
+	Path  string `json:"path"`
+	Blob  string `json:"blob"`
+	Mode  string `json:"mode"`
+	IsDir bool   `json:"is_dir"`
+}
+
+// SearchPathsResponse is the body of GET .../search/paths (RFC-0024 §5.2). Matches
+// are sorted by path; Truncated is set over the entry budget or the result cap.
+type SearchPathsResponse struct {
+	Query     string      `json:"query"`
+	Ref       string      `json:"ref"`
+	RefCommit string      `json:"ref_commit"`
+	Matches   []PathMatch `json:"matches"`
+	Truncated bool        `json:"truncated"`
+}
+
+// ContentLine is one matching line of a file (RFC-0024 §5.3): its 1-based number
+// and inert content (§7/S4).
+type ContentLine struct {
+	Line    int    `json:"line"`
+	Content string `json:"content"`
+}
+
+// ContentMatch is one file with at least one matching line (RFC-0024 §5.3).
+type ContentMatch struct {
+	Path  string        `json:"path"`
+	Blob  string        `json:"blob"`
+	Lines []ContentLine `json:"lines"`
+}
+
+// SearchContentResponse is the body of GET .../search/content (RFC-0024 §5.3).
+// Binary and oversize files are silently absent; Truncated is set over any budget.
+type SearchContentResponse struct {
+	Query     string         `json:"query"`
+	Ref       string         `json:"ref"`
+	RefCommit string         `json:"ref_commit"`
+	Matches   []ContentMatch `json:"matches"`
+	Truncated bool           `json:"truncated"`
+}
+
 // WhoamiResponse reports the caller's resolved identity (RFC-0020 §8.5). With a
 // ?repo=<name> query it also reports which capabilities the identity holds on
 // that resource — a read-only view of the RFC-0018 decision, for debugging
