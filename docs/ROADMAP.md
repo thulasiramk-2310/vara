@@ -40,7 +40,7 @@ have an empty diff across the entire Platform layer.
 | **v0.1** | Engine + Distributed Transport                            | ✅ Complete     |
 | **v0.2** | Hub Backend (Identity, Authorization, Repo Management, Accounts) | ✅ Complete     |
 | **v0.3** | Distribution & Self-Hosting (binaries, install script, Docker)  | ✅ Complete     |
-| **v0.4** | Repository Browser + Diff Viewer + Search                 | Planned        |
+| **v0.4** | Repository Browser + Diff Viewer + Search                 | ✅ Complete     |
 | **v0.5** | Organizations + Teams + Pull Requests + Issues            | Planned        |
 | **v1.0** | Stable Platform                                           | Future         |
 
