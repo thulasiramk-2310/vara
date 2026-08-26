@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/thulasiramk-2310/vara/internal/credstore"
 	"github.com/thulasiramk-2310/vara/internal/protocol"
 	"github.com/thulasiramk-2310/vara/internal/repository"
 	"github.com/thulasiramk-2310/vara/internal/transport"
@@ -211,6 +212,33 @@ func (d *doctor) configAndRemotes(repo *repository.Repository, url string, cfg A
 
 func (d *doctor) checkRemote(url string, cfg AuthConfig) {
 	d.section("Remote: " + url)
+
+	// Report the credential the client would present (RFC-0017 §9): an explicit
+	// flag, else the stored login for this origin, else anonymous. This is an
+	// authentication diagnostic and is kept distinct from authorization below.
+	explicit := cfg.Basic != "" || cfg.Bearer != ""
+	var storedUser string
+	storedExpired := false
+	if !explicit && isRemoteURL(url) {
+		if store, err := credstore.Load(); err == nil {
+			if c, ok := store.Get(url); ok {
+				storedUser = c.Username
+				storedExpired = c.Expired()
+			}
+		}
+	}
+	switch {
+	case explicit:
+		d.line(dxOK, "credentials", "presented via --basic/--bearer", "")
+	case storedExpired:
+		d.line(dxFail, "credentials", "stored session expired", "vara login "+originForDoctor(url))
+		return
+	case storedUser != "":
+		d.line(dxOK, "credentials", "stored login as "+storedUser, "")
+	default:
+		d.line(dxInfo, "credentials", "none configured (anonymous)", "vara login "+originForDoctor(url)+" to authenticate")
+	}
+
 	tr, err := openForDoctor(url, cfg)
 	if err != nil {
 		d.line(dxFail, "open", err.Error(), "check the URL")
@@ -224,16 +252,37 @@ func (d *doctor) checkRemote(url string, cfg AuthConfig) {
 		switch {
 		case strings.Contains(msg, "UPGRADE_REQUIRED"):
 			d.line(dxFail, "protocol", "incompatible version", "upgrade vara or the server")
-		case strings.Contains(msg, "UNAUTHENTICATED"):
-			d.line(dxWarn, "authentication", "reachable; credentials required", "pass --basic user:secret or --bearer <token>")
-		case strings.Contains(msg, "UNAUTHORIZED"):
-			d.line(dxWarn, "authorization", "authenticated; read denied", "ask an admin to grant 'read' on this repository")
+		case isAuthnErr(msg):
+			d.line(dxWarn, "authentication", "reachable; valid credentials required", "run 'vara login "+originForDoctor(url)+"'")
+		case isAuthzErr(msg):
+			// Authentication succeeded; the server denied authorization. Report
+			// it as an authorization problem, never a login problem.
+			d.line(dxOK, "authentication", "credential accepted", "")
+			d.line(dxWarn, "authorization", "read denied", "ask an admin to grant 'read' on this repository")
 		default:
 			d.line(dxFail, "reachability", "unreachable: "+msg, "check the URL and that 'vara serve' is running")
 		}
 		return
 	}
-	d.line(dxOK, "reachability", fmt.Sprintf("reachable; %d ref(s); read OK", len(list)), "")
+	if explicit || storedUser != "" {
+		who := storedUser
+		if who == "" {
+			who = "presented credential"
+		}
+		d.line(dxOK, "authentication", "authenticated as "+who, "")
+	} else {
+		d.line(dxOK, "authentication", "anonymous", "")
+	}
+	d.line(dxOK, "read access", fmt.Sprintf("reachable; %d ref(s); read OK", len(list)), "")
+}
+
+// originForDoctor returns the origin of a URL for hint messages, falling back to
+// the raw URL when it is not an http(s) server URL.
+func originForDoctor(url string) string {
+	if o, err := credstore.Origin(url); err == nil {
+		return o
+	}
+	return url
 }
 
 func (d *doctor) summary() error {
@@ -262,6 +311,12 @@ func openForDoctor(url string, cfg AuthConfig) (transport.Transport, error) {
 			ht.SetBasicAuth(user, secret)
 		} else if cfg.Bearer != "" {
 			ht.SetBearerToken(cfg.Bearer)
+		} else if store, err := credstore.Load(); err == nil {
+			// No explicit credential: present the stored login for this origin,
+			// unless it is locally known to be expired (never send a stale one).
+			if c, ok := store.Get(url); ok && !c.Expired() {
+				ht.SetBearerToken(c.Secret)
+			}
 		}
 		return ht, nil
 	}

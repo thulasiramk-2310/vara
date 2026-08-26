@@ -105,7 +105,7 @@ func RunClone(url, dir string) (string, error) {
 		return "", fmt.Errorf("clone: destination %q already exists and is not empty", dir)
 	}
 
-	tr, err := transport.Open(url)
+	tr, _, err := openRemote(url)
 	if err != nil {
 		return "", fmt.Errorf("clone: %w", err)
 	}
@@ -113,7 +113,7 @@ func RunClone(url, dir string) (string, error) {
 
 	advs, err := tr.ListRefs()
 	if err != nil {
-		return "", fmt.Errorf("clone: list refs: %w", err)
+		return "", classifyRemoteErr("clone", url, err)
 	}
 
 	// Remember whether the destination already existed so a failed clone rolls
@@ -162,7 +162,7 @@ func RunClone(url, dir string) (string, error) {
 	}
 	stream, err := tr.FetchPack(wants, nil)
 	if err != nil {
-		return "", fmt.Errorf("clone: fetch: %w", err)
+		return "", classifyRemoteErr("clone", url, err)
 	}
 	defer stream.Close()
 
@@ -230,7 +230,7 @@ func RunFetch(ctx *Context, remoteName string) (string, error) {
 		return "", fmt.Errorf("no such remote: %s", remoteName)
 	}
 
-	tr, err := transport.Open(remote.URL)
+	tr, _, err := openRemote(remote.URL)
 	if err != nil {
 		return "", fmt.Errorf("fetch: %w", err)
 	}
@@ -238,7 +238,7 @@ func RunFetch(ctx *Context, remoteName string) (string, error) {
 
 	advs, err := tr.ListRefs()
 	if err != nil {
-		return "", fmt.Errorf("fetch: list refs: %w", err)
+		return "", classifyRemoteErr("fetch", remote.URL, err)
 	}
 	if len(advs) == 0 {
 		return "Already up to date.\n", nil
@@ -254,7 +254,7 @@ func RunFetch(ctx *Context, remoteName string) (string, error) {
 
 	stream, err := tr.FetchPack(wants, haves)
 	if err != nil {
-		return "", fmt.Errorf("fetch: pack: %w", err)
+		return "", classifyRemoteErr("fetch", remote.URL, err)
 	}
 	defer stream.Close()
 
@@ -363,7 +363,7 @@ func RunPush(ctx *Context, remoteName, branch string, force bool) (string, error
 		return "", fmt.Errorf("no such remote: %s", remoteName)
 	}
 
-	tr, err := transport.Open(remote.URL)
+	tr, _, err := openRemote(remote.URL)
 	if err != nil {
 		return "", fmt.Errorf("push: %w", err)
 	}
@@ -372,7 +372,7 @@ func RunPush(ctx *Context, remoteName, branch string, force bool) (string, error
 	// Discover the remote's current value for this branch.
 	advs, err := tr.ListRefs()
 	if err != nil {
-		return "", fmt.Errorf("push: list refs: %w", err)
+		return "", classifyRemoteErr("push", remote.URL, err)
 	}
 	remoteRef := "refs/heads/" + branch
 	var oldID types.CommitID
@@ -405,7 +405,7 @@ func RunPush(ctx *Context, remoteName, branch string, force bool) (string, error
 		{Name: remoteRef, Old: oldID, New: newID, Force: force},
 	})
 	if err != nil {
-		return "", fmt.Errorf("push: %w", err)
+		return "", classifyRemoteErr("push", remote.URL, err)
 	}
 	r := results[0]
 	if !r.OK {
