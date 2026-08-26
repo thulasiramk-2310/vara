@@ -10,7 +10,7 @@
 **RFC-driven, transactional, content-addressed distributed version control platform written in Go.**
 
 [![CI](https://github.com/thulasiramk-2310/vara/actions/workflows/ci.yml/badge.svg)](https://github.com/thulasiramk-2310/vara/actions/workflows/ci.yml)
-[![Go](https://img.shields.io/badge/go-1.21+-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![Go](https://img.shields.io/badge/go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Release](https://img.shields.io/badge/release-v0.4.0-blue)](https://github.com/thulasiramk-2310/vara/releases/tag/v0.4.0)
 [![RFC Status](https://img.shields.io/badge/RFCs-24%20accepted-blue)](docs/)
@@ -40,7 +40,7 @@ VARA is built around a protocol-first architecture: SHA-256 object identity, zst
 | **Three-layer undo** | Journal rollback → reflog restore → snapshot archive. Always a path to recovery. |
 | **Commit Graph Index** | Binary `graph.idx` (RFC-0013). History on 10k commits: **16 ms** (was 75.8 s). |
 | **Fuzz-tested parsers** | Ref names, journal entries, commit objects, tree blobs, and binary inputs. |
-| **Cross-platform** | Tested on Linux, macOS, and Windows in CI across Go 1.21, 1.22, 1.23. |
+| **Cross-platform** | Prebuilt binaries for Linux, macOS, and Windows (amd64/arm64). |
 
 ---
 
@@ -72,30 +72,77 @@ Every package maps to one or more RFC specifications. See [`docs/ARCHITECTURE.md
 
 VARA is a single static binary — no CGO, no runtime dependencies. The same
 `vara` executable is both the client (like `git`) and the self-hosted Hub server.
+**The prebuilt binary needs nothing installed** (no Go, no toolchain); building
+from source needs Go **1.25+**.
 
-**Prebuilt binary** (Linux · macOS · Windows, `amd64`/`arm64`) — one line:
+There is no `winget`, `scoop`, or Homebrew package yet — on every OS you install
+by unpacking the release archive, as shown below. Archives are named
+`vara_<version>_<os>_<arch>` and live on the
+[releases page](https://github.com/thulasiramk-2310/vara/releases/latest):
+
+| OS | Intel/AMD (`amd64`) | ARM (`arm64`) |
+|----|--------------------|---------------|
+| Linux | `vara_<v>_linux_amd64.tar.gz` | `vara_<v>_linux_arm64.tar.gz` |
+| macOS | `vara_<v>_darwin_amd64.tar.gz` | `vara_<v>_darwin_arm64.tar.gz` (Apple Silicon) |
+| Windows | `vara_<v>_windows_amd64.zip` | `vara_<v>_windows_arm64.zip` |
+
+### Linux / macOS
+
+One line — auto-detects your OS/arch and installs onto your PATH:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/thulasiramk-2310/vara/main/scripts/install.sh | sh
 ```
 
-Or grab an archive from the [releases page](https://github.com/thulasiramk-2310/vara/releases)
-and put `vara` on your PATH.
-
-**With the Go toolchain** (Go 1.21+):
+Or do it by hand:
 
 ```sh
-go install github.com/thulasiramk-2310/vara/cmd/vara@latest
+VER=v0.4.0; NUM=${VER#v}
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')                 # linux | darwin
+ARCH=$(uname -m); case "$ARCH" in x86_64) ARCH=amd64;; aarch64|arm64) ARCH=arm64;; esac
+curl -fsSL -o vara.tar.gz \
+  "https://github.com/thulasiramk-2310/vara/releases/download/$VER/vara_${NUM}_${OS}_${ARCH}.tar.gz"
+tar -xzf vara.tar.gz vara            # extract the binary
+sudo mv vara /usr/local/bin/         # or: mv vara ~/.local/bin/  (must be on your PATH)
+vara --version
 ```
 
-**From source:**
+> macOS: if Gatekeeper blocks an unsigned binary you downloaded via a browser,
+> clear the quarantine flag once: `xattr -d com.apple.quarantine /usr/local/bin/vara`.
+
+### Windows (PowerShell)
+
+No winget package — download the `.zip`, extract it, and add it to your PATH:
+
+```powershell
+$ver = "v0.4.0"; $num = $ver.TrimStart('v')
+$dir = "$env:LOCALAPPDATA\Programs\vara"
+Invoke-WebRequest "https://github.com/thulasiramk-2310/vara/releases/download/$ver/vara_${num}_windows_amd64.zip" -OutFile "$env:TEMP\vara.zip"
+Expand-Archive "$env:TEMP\vara.zip" -DestinationPath $dir -Force
+# add the folder to your user PATH (takes effect in NEW terminals)
+[Environment]::SetEnvironmentVariable("Path",
+  ([Environment]::GetEnvironmentVariable("Path","User") + ";$dir"), "User")
+```
+
+Open a **new** terminal, then run `vara --version`. On an ARM device use the
+`windows_arm64.zip` archive instead. (Prefer a GUI? Download the `.zip` from the
+releases page, right-click → Extract All, and add the extracted folder to PATH via
+*Settings → System → About → Advanced system settings → Environment Variables*.)
+
+### Build it yourself (needs Go 1.25+)
+
+```sh
+go install github.com/thulasiramk-2310/vara/cmd/vara@latest   # installs the latest release
+```
+
+or from a clone:
 
 ```sh
 git clone https://github.com/thulasiramk-2310/vara
 cd vara && go build -o vara ./cmd/vara
 ```
 
-Verify with `vara --version`. Full install and self-hosting instructions —
+Verify any install with `vara --version`. Full self-hosting instructions —
 including running your own Hub with Docker — are in
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 

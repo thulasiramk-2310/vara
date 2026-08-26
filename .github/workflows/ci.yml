@@ -2,9 +2,15 @@ name: CI
 
 on:
   push:
-    branches: [main, "feature/**"]
+    branches: [main, "feature/**", "feat/**"]
   pull_request:
     branches: [main]
+
+# Test the Go version we actually declare (go.mod requires 1.25). GOTOOLCHAIN=local
+# forbids the silent auto-download that would otherwise let any matrix version
+# "pass" by upgrading behind our back — so a future go.mod bump fails CI loudly.
+env:
+  GOTOOLCHAIN: local
 
 jobs:
   test:
@@ -14,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        go: ["1.21", "1.22", "1.23"]
+        go: ["1.25"]
 
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +51,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25"
           cache: true
 
       - name: Run fuzz targets (short)
@@ -66,7 +72,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25"
           cache: true
 
       - name: Run benchmarks
