@@ -181,6 +181,34 @@ func applyBlocksInRegion(
 	return result
 }
 
+// wholeFileConflict renders a single conflict block covering the entire file,
+// used when there is no base to diff against (both sides added the path). The
+// marker form matches what mergeChangeBlocks emits. A newline is inserted before
+// a separator/terminator when the preceding side's last line lacks one, so the
+// markers always sit on their own lines.
+func wholeFileConflict(ourLines, theirLines []string, ourLabel, theirLabel string) []byte {
+	var result []byte
+	appendLines := func(ls []string) {
+		for _, l := range ls {
+			result = append(result, l...)
+		}
+	}
+	ensureNL := func() {
+		if n := len(result); n > 0 && result[n-1] != '\n' {
+			result = append(result, '\n')
+		}
+	}
+
+	result = append(result, "<<<<<<< "+ourLabel+"\n"...)
+	appendLines(ourLines)
+	ensureNL()
+	result = append(result, "=======\n"...)
+	appendLines(theirLines)
+	ensureNL()
+	result = append(result, ">>>>>>> "+theirLabel+"\n"...)
+	return result
+}
+
 // equalLines returns true if a and b contain the same strings in the same order.
 func equalLines(a, b []string) bool {
 	if len(a) != len(b) {

@@ -118,6 +118,19 @@ func ThreeWayMerge(base, ours, theirs []byte, ourLabel, theirLabel string) ([]by
 	ourLines := splitLines(ours)
 	theirLines := splitLines(theirs)
 
+	// Empty base: the diff3 line algorithm has no base line to anchor on, so both
+	// sides become zero-width insertion blocks at position 0 that the merge loop
+	// can never advance past — it does not terminate. Resolve it directly: with no
+	// base, the whole file is an addition on each side; identical additions merge
+	// cleanly, differing ones are a single whole-file conflict. Behavior-preserving:
+	// the only inputs that reach this branch otherwise fail to return at all.
+	if len(baseLines) == 0 {
+		if equalLines(ourLines, theirLines) {
+			return ours, false
+		}
+		return wholeFileConflict(ourLines, theirLines, ourLabel, theirLabel), true
+	}
+
 	editsBO := myersDiff(baseLines, ourLines)
 	editsBT := myersDiff(baseLines, theirLines)
 
