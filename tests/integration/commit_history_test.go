@@ -29,6 +29,7 @@ func TestCommitAndHistory(t *testing.T) {
 		Repository: repo,
 		Index:      idx,
 	}
+	setTestIdentity(t, repoDir)
 
 	// 2. Add some files
 	os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("Hello 1"), 0644)

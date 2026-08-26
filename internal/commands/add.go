@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/thulasiramk-2310/vara/internal/conflict"
+	"github.com/thulasiramk-2310/vara/internal/mergestate"
 	"github.com/thulasiramk-2310/vara/internal/worktree"
 	"github.com/thulasiramk-2310/vara/pkg/index"
 	"github.com/thulasiramk-2310/vara/pkg/object"
@@ -54,6 +56,12 @@ func RunAdd(ctx *Context, args []string) error {
 
 	store := object.NewStore(ctx.Repository.VaraDir)
 
+	// markerFree records staged paths whose content has no conflict markers, used
+	// below to mark a conflicted path resolved when the user resolves it by hand
+	// and `vara add`s it (the Git-style "add means resolved") — but never while
+	// markers remain, so a half-edited conflict cannot be committed.
+	markerFree := map[string]bool{}
+
 	for _, path := range toAdd {
 		absPath := filepath.Join(ctx.Repository.RootDir, filepath.FromSlash(path))
 		f, err := os.Open(absPath)
@@ -71,6 +79,7 @@ func RunAdd(ctx *Context, args []string) error {
 		if err != nil {
 			return fmt.Errorf("add %s: %w", path, err)
 		}
+		markerFree[path] = !conflict.HasMarkers(content)
 
 		info, _ := os.Stat(absPath)
 		fp := uint64(0)
@@ -107,7 +116,38 @@ func RunAdd(ctx *Context, args []string) error {
 	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
 		return err
 	}
-	return os.Rename(tmpPath, indexPath)
+	if err := os.Rename(tmpPath, indexPath); err != nil {
+		return err
+	}
+
+	// Git-style "add means resolved": if a merge is in progress, mark any staged
+	// conflict path resolved — but only when its staged content is marker-free, so
+	// a still-conflicted file can never be marked resolved by accident.
+	return markResolvedByAdd(ctx.Repository.VaraDir, markerFree)
+}
+
+// markResolvedByAdd flips the sidecar Resolved flag for staged, marker-free
+// conflict paths. It is a no-op when no conflict sidecar exists.
+func markResolvedByAdd(varaDir string, markerFree map[string]bool) error {
+	st, ok, err := mergestate.Read(varaDir)
+	if err != nil || !ok {
+		return nil // no merge in progress (or unreadable) — nothing to mark
+	}
+	changed := false
+	for path, clean := range markerFree {
+		if !clean {
+			continue
+		}
+		if _, isConflict := st.Lookup(path); isConflict {
+			if st.SetResolved(path, true) {
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		return nil
+	}
+	return mergestate.Write(varaDir, st)
 }
 
 // matchesAny returns true if path matches any of the given pathspecs.

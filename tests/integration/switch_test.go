@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/thulasiramk-2310/vara/internal/commands"
+	"github.com/thulasiramk-2310/vara/internal/devidentity"
 	"github.com/thulasiramk-2310/vara/internal/repository"
 	"github.com/thulasiramk-2310/vara/pkg/index"
 	"github.com/thulasiramk-2310/vara/pkg/refs"
@@ -21,11 +22,25 @@ func setupRepo(t *testing.T) (*commands.Context, string) {
 	if err != nil {
 		t.Fatalf("init: %v", err)
 	}
+	setTestIdentity(t, repo.VaraDir)
 	ctx := &commands.Context{
 		Repository: repo,
 		Index:      index.New(),
 	}
 	return ctx, tmpDir
+}
+
+// setTestIdentity configures a repository-scoped commit identity (RFC-0017) so
+// tests that commit are hermetic and never depend on the developer's global
+// config. Without it, RunCommit correctly refuses to invent an author.
+func setTestIdentity(t *testing.T, varaDir string) {
+	t.Helper()
+	if err := devidentity.SetRepo(varaDir, devidentity.Identity{
+		Name:  "Test Developer",
+		Email: "test@example.com",
+	}); err != nil {
+		t.Fatalf("set identity: %v", err)
+	}
 }
 
 // makeCommit stages all files in the working directory and creates a commit.

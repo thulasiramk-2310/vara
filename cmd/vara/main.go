@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/thulasiramk-2310/vara/internal/commands"
+	"github.com/thulasiramk-2310/vara/internal/conflict"
 	"github.com/thulasiramk-2310/vara/internal/repository"
 	"github.com/thulasiramk-2310/vara/pkg/index"
 )
@@ -71,6 +72,16 @@ func main() {
 			die("%v", err)
 		}
 
+	case "rm":
+		ctx := mustCtx(true)
+		out, err := commands.RunRm(ctx, rest)
+		if err != nil {
+			die("rm: %v", err)
+		}
+		if out != "" {
+			fmt.Print(out)
+		}
+
 	case "status":
 		ctx := mustCtx(true)
 		out, err := commands.RunStatus(ctx)
@@ -128,8 +139,36 @@ func main() {
 		}
 
 	case "merge":
+		// `vara merge --abort` undoes an in-progress conflicted merge.
+		if len(rest) == 1 && (rest[0] == "--abort" || rest[0] == "--cancel") {
+			ctx := mustCtx(true)
+			out, err := commands.RunMergeAbort(ctx)
+			if err != nil {
+				die("merge --abort: %v", err)
+			}
+			if out != "" {
+				fmt.Print(out)
+			}
+			break
+		}
+		// `vara merge --continue [-m <msg>]` concludes a resolved conflicted merge.
+		if len(rest) >= 1 && rest[0] == "--continue" {
+			msg, err := parseMergeContinueFlags(rest[1:])
+			if err != nil {
+				die("merge --continue: %v", err)
+			}
+			ctx := mustCtx(true)
+			out, err := commands.RunMergeContinue(ctx, msg)
+			if err != nil {
+				die("merge --continue: %v", err)
+			}
+			if out != "" {
+				fmt.Print(out)
+			}
+			break
+		}
 		if len(rest) < 1 {
-			fmt.Fprintln(os.Stderr, "usage: vara merge <branch>")
+			fmt.Fprintln(os.Stderr, "usage: vara merge <branch>  (or: vara merge --abort | --continue)")
 			os.Exit(1)
 		}
 		ctx := mustCtx(true)
@@ -140,6 +179,30 @@ func main() {
 		if out != "" {
 			fmt.Print(out)
 		}
+
+	case "resolve":
+		ctx := mustCtx(true)
+		ra, err := parseResolveFlags(rest)
+		if err != nil {
+			die("resolve: %v", err)
+		}
+		out, err := commands.RunResolve(ctx, ra)
+		if err != nil {
+			die("resolve: %v", err)
+		}
+		fmt.Print(out)
+
+	case "diff":
+		ctx := mustCtx(true)
+		da, err := parseDiffFlags(rest)
+		if err != nil {
+			die("diff: %v", err)
+		}
+		out, err := commands.RunDiff(ctx, da)
+		if err != nil {
+			die("diff: %v", err)
+		}
+		fmt.Print(out)
 
 	case "undo":
 		ctx := mustCtx(true)
@@ -337,6 +400,17 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "identity":
+		sub := ""
+		if len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
+			sub = rest[0]
+			rest = rest[1:]
+		}
+		ia := parseIdentityFlags(rest)
+		if err := commands.RunIdentity(sub, ia); err != nil {
+			die("%v", err)
+		}
+
 	case "login", "logout", "token", "whoami":
 		acfg, args := parseAuthFlags(rest)
 		var err error
@@ -452,6 +526,94 @@ func parseAuthFlags(rest []string) (commands.AuthConfig, []string) {
 	return cfg, args
 }
 
+// parseResolveFlags parses `vara resolve` options: a strategy flag
+// (--ours/--theirs/--union/--auto), --list, and any positional pathspecs.
+func parseResolveFlags(rest []string) (commands.ResolveArgs, error) {
+	var ra commands.ResolveArgs
+	for _, a := range rest {
+		switch a {
+		case "--ours":
+			ra.Strategy = conflict.Ours
+		case "--theirs":
+			ra.Strategy = conflict.Theirs
+		case "--union":
+			ra.Strategy = conflict.Union
+		case "--auto":
+			ra.Strategy = conflict.Auto
+		case "--list", "-l":
+			ra.List = true
+		case "--merge", "--diff3", "--zdiff3":
+			s, _ := conflict.ParseMarkerStyle(strings.TrimPrefix(a, "--"))
+			ra.Style = s
+			ra.StyleSet = true
+		default:
+			if strings.HasPrefix(a, "-") {
+				return ra, fmt.Errorf("unknown flag %q", a)
+			}
+			ra.Paths = append(ra.Paths, a)
+		}
+	}
+	return ra, nil
+}
+
+// parseDiffFlags parses `vara diff [--staged|--cached] [<pathspec>...]`.
+func parseDiffFlags(rest []string) (commands.DiffArgs, error) {
+	var da commands.DiffArgs
+	for _, a := range rest {
+		switch a {
+		case "--staged", "--cached":
+			da.Staged = true
+		default:
+			if strings.HasPrefix(a, "-") {
+				return da, fmt.Errorf("unknown flag %q", a)
+			}
+			da.Paths = append(da.Paths, a)
+		}
+	}
+	return da, nil
+}
+
+// parseMergeContinueFlags parses `vara merge --continue [-m <msg>]`, returning the
+// optional commit message (empty means use the default merge message).
+func parseMergeContinueFlags(rest []string) (string, error) {
+	msg := ""
+	for i := 0; i < len(rest); i++ {
+		switch rest[i] {
+		case "-m", "--message":
+			if i+1 >= len(rest) {
+				return "", fmt.Errorf("%s requires a message argument", rest[i])
+			}
+			msg = rest[i+1]
+			i++
+		default:
+			return "", fmt.Errorf("unknown flag %q", rest[i])
+		}
+	}
+	return msg, nil
+}
+
+// parseIdentityFlags pulls --name/--email/--default out of `vara identity set`.
+func parseIdentityFlags(rest []string) commands.IdentityArgs {
+	var ia commands.IdentityArgs
+	for i := 0; i < len(rest); i++ {
+		switch rest[i] {
+		case "--default":
+			ia.Default = true
+		case "--name":
+			if i+1 < len(rest) {
+				ia.Name = rest[i+1]
+				i++
+			}
+		case "--email":
+			if i+1 < len(rest) {
+				ia.Email = rest[i+1]
+				i++
+			}
+		}
+	}
+	return ia
+}
+
 // die prints a formatted error to stderr and exits.
 func die(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "vara: "+format+"\n", args...)
@@ -464,13 +626,16 @@ func printUsage() {
 Commands:
   init      Create an empty VARA repository
   add       Stage file changes into the index
+  rm        Remove tracked files and stage the deletion
   status    Show working tree status
+  diff      Show changes (working tree vs index, or --staged vs HEAD)
   commit    Record staged changes as a new commit
   log       Show commit history (alias: history)
   history   Show commit history
   branch    List or create branches
   switch    Switch to a different branch
   merge     Join development histories together
+  resolve   Automatically fix merge conflicts (ours/theirs/union/auto)
   undo      Revert to the last committed state
   verify    Check repository integrity
   doctor    Diagnose repo, config, and remote health
@@ -484,10 +649,13 @@ Remote commands (RFC-0014):
   serve     Serve repositories over HTTP (RFC-0016)
   gc        Reclaim unreferenced objects
 
+Identity (RFC-0017):
+  identity  Configure the name/email recorded as your commit author (offline)
+
 Hub commands (RFC-0019, RFC-0020):
   repo      Manage repositories on a server (create/delete/rename/list/show)
-  login     Log in to a server and obtain a session token
-  logout    Revoke the current session
+  login     Log in to a server; the session is stored for later commands
+  logout    Log out of a server and clear the stored session
   whoami    Show who the server thinks you are (and your capabilities)
   token     Manage API tokens (create/list/revoke)
   account   Manage accounts (create/disable/delete/passwd)
@@ -517,6 +685,15 @@ Specific files or directories can be named:
 
 Files matching .varaignore are excluded.
 `,
+	"rm": `usage: vara rm <pathspec>...
+
+Remove tracked files from the working tree and stage the deletion, so the next
+commit drops them from the tree. Pathspecs match like 'vara add' (exact file or
+directory prefix).
+
+During a merge, removing a conflicted file records the deletion as that path's
+resolution — the way to resolve a modify/delete conflict by choosing to delete.
+`,
 	"status": `usage: vara status
 
 Show the working tree status relative to the index.
@@ -525,6 +702,19 @@ Output shows:
   modified:  tracked files changed since last add
   deleted:   tracked files removed from disk
   ??         untracked files not in the index
+
+During a merge it also lists unmerged/resolved paths from the conflict sidecar.
+`,
+	"diff": `usage: vara diff [--staged] [<pathspec>...]
+
+Show line-level changes as a unified diff.
+
+  (default)     working tree vs the index (unstaged changes)
+  --staged      the index vs HEAD (what a commit would record); alias --cached
+  <pathspec>    restrict to the given files/directories
+
+During a merge, unmerged paths are shown first as an ours-vs-theirs diff, since a
+plain diff of a file full of conflict markers is not useful.
 `,
 	"commit": `usage: vara commit -m "<message>"
 
@@ -566,12 +756,55 @@ A snapshot of the current working tree is taken before switching so that
 'vara undo' can restore the pre-switch state.
 `,
 	"merge": `usage: vara merge <branch>
+       vara merge --continue [-m <msg>]
+       vara merge --abort
 
 Merge <branch> into the current branch.
 
   Fast-forward: if the current branch is an ancestor, the ref is advanced.
   Three-way:    Myers diff + diff3 merge. Files with conflicting edits
-                receive conflict markers. Run 'vara commit' after resolving.
+                receive conflict markers. Run 'vara resolve' then
+                'vara merge --continue' (or 'vara commit') after a conflict.
+
+  --continue    conclude an in-progress merge as a two-parent merge commit,
+                once every conflict is resolved. Refuses, naming them, while
+                any conflict remains unresolved. With no -m, uses the default
+                "Merge branch '<branch>'" message.
+  --abort       undo an in-progress conflicted merge, restoring the working
+                tree and index to the pre-merge (HEAD) state. Refuses, naming
+                the files, if it would discard edits you made to files the
+                merge never touched.
+`,
+	"resolve": `usage: vara resolve [--ours | --theirs | --union | --auto] [<pathspec>...]
+       vara resolve --list
+
+Automatically fix the conflict markers left in the working tree by a conflicted
+'vara merge' or 'vara pull', then re-stage the fixed files so 'vara commit' can
+complete the merge (RFC-0008 §5).
+
+Strategies (applied to every conflict hunk):
+  --ours     keep our side of each conflict
+  --theirs   keep their side of each conflict
+  --union    keep both sides (ours first) — good for append-only files
+  --auto     (default) base-aware three-way merge: combine non-overlapping edits
+             (including disjoint adjacent ones), leave genuine conflicts marked
+
+Marker style for conflicts --auto leaves behind (default: repo config
+'merge.conflictStyle', else zdiff3):
+  --merge    classic 2-way markers
+  --diff3    add the ||||||| base section (common ancestor)
+  --zdiff3   diff3 with shared leading/trailing lines hoisted out as context
+
+Other:
+  --list     list conflicted files and their conflict counts; change nothing
+  <pathspec> restrict resolution to the given files/directories
+
+After resolving, run 'vara merge --continue' (or 'vara commit') to record the
+merge. A commit is refused while any conflict remains unresolved.
+
+  vara resolve --list
+  vara resolve --theirs
+  vara resolve --union config/hosts
 `,
 	"undo": `usage: vara undo
 
@@ -727,27 +960,54 @@ Examples:
   vara repo create http://localhost:8080 myproject --basic alice:s3cret
   vara repo list   http://localhost:8080 --basic alice:s3cret
 `,
+	"identity": `usage: vara identity show
+       vara identity set [--default] --name "<name>" --email "<email>"
+
+Configure the developer identity recorded as the author/committer of your
+commits (RFC-0017). This is local configuration, NOT authentication — it never
+contacts a server, and your account ID never enters a commit object.
+
+  vara identity show                              print the resolved identity
+  vara identity set  --name "A" --email a@x.io    set THIS repository's identity
+  vara identity set --default --name "A" --email a@x.io   set your user default
+
+Resolution at commit time: repository identity (.vara/identity) overrides the
+user default ($VARA_HOME/identity). If neither is set, 'vara commit' fails with
+guidance rather than inventing a placeholder author.
+
+'vara identity show' is fully offline. The "Account/Status" lines reflect a
+local account association (from a prior 'vara login') and never imply a request.
+`,
 	"login": `usage: vara login <server-url> <username> --password <pw>
 
-Authenticate to a server (RFC-0020) and obtain a session token. The token is
-printed once; use it as '--bearer <token>' on subsequent commands, or as the
-password in an http://user:token@host clone URL.
+Authenticate to a server (RFC-0020) and store the resulting session in your
+credential store, keyed by the server's origin. The session secret is NOT
+printed. Subsequent clone/fetch/pull/push to any repository on that server
+authenticate automatically — no per-command --bearer needed.
 
   vara login http://localhost:8080 alice --password s3cret
-`,
-	"logout": `usage: vara logout <server-url> --bearer <session-token>
 
-Revoke the session identified by the given token immediately (RFC-0020).
+Credentials are stored under your VARA home ($VARA_HOME or the OS config dir),
+never inside a repository, in a file with owner-only (0600) permissions.
+`,
+	"logout": `usage: vara logout <server-url>
+
+Revoke the stored session on the server (best-effort) and remove the credential
+from your local store (RFC-0020). After logout, requests to that server are
+anonymous again.
+
+  vara logout http://localhost:8080
 `,
 	"whoami": `usage: vara whoami <server-url> [--repo <name>] [--basic u:s | --bearer t]
 
-Show the identity the server resolves for your credential (RFC-0020 §8.5).
-With --repo, also list which capabilities you hold on that repository — handy
-for debugging why a push or an admin action is denied. Use --repo _server to
-see server-scope capabilities (create-repo, list-repos, manage-accounts).
+Show the identity the server resolves for your credential (RFC-0020 §8.5). With
+no --basic/--bearer, the stored login for the server's origin is used, so this
+"just works" after 'vara login'. With --repo, also list which capabilities you
+hold on that repository — handy for debugging why a push or an admin action is
+denied. Use --repo _server for server-scope capabilities.
 
-  vara whoami http://localhost:8080 --bearer <token>
-  vara whoami http://localhost:8080 --repo demo --basic alice:s3cret
+  vara whoami http://localhost:8080
+  vara whoami http://localhost:8080 --repo demo
 `,
 	"token": `usage: vara token <create|list|revoke> <server-url> [args] [--basic u:s | --bearer t]
 

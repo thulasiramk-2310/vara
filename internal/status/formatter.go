@@ -17,6 +17,26 @@ type StatusResult struct {
 	Deleted    []string
 	Untracked  []string
 	Conflicted []string
+	// Merge, when non-nil, describes an in-progress merge surfaced from the
+	// conflict sidecar (.vara/CONFLICTS) — the authoritative source that the
+	// working-tree scanner cannot see (marker-less modify/delete and add/add
+	// conflicts leave the worktree looking merely "modified" or clean).
+	Merge *MergeStatus
+}
+
+// MergeStatus describes an in-progress merge for `vara status`.
+type MergeStatus struct {
+	InProgress bool
+	Unmerged   []ConflictLine // conflicts still needing resolution
+	Resolved   []string       // resolved paths staged for the merge commit
+}
+
+// ConflictLine is one unmerged path with its display label and short code,
+// classified by conflict kind (both modified / both added / deleted by us|them).
+type ConflictLine struct {
+	Path  string
+	Long  string // e.g. "both modified", "deleted by them"
+	Short string // e.g. "UU", "UD" (git-style two-letter code)
 }
 
 // FromScanner builds a StatusResult from the output of the repository scanner.
@@ -57,9 +77,45 @@ func FormatLong(res *StatusResult, branch string) string {
 		sb.WriteString("HEAD detached\n")
 	}
 
-	hasChanges := len(res.Modified)+len(res.Deleted)+len(res.Staged)+len(res.Untracked)+len(res.Conflicted) > 0
+	mergeUnmerged, mergeResolved := 0, 0
+	if res.Merge != nil {
+		mergeUnmerged = len(res.Merge.Unmerged)
+		mergeResolved = len(res.Merge.Resolved)
+	}
+	hasChanges := len(res.Modified)+len(res.Deleted)+len(res.Staged)+len(res.Untracked)+len(res.Conflicted)+mergeUnmerged+mergeResolved > 0
 
-	if len(res.Conflicted) > 0 {
+	// In-progress merge banner (sidecar-driven).
+	if res.Merge != nil && res.Merge.InProgress {
+		if mergeUnmerged > 0 {
+			sb.WriteString("You have unmerged paths.\n")
+			sb.WriteString("  (fix conflicts and run \"vara commit\")\n")
+			sb.WriteString("  (use \"vara merge --abort\" to abort the merge)\n")
+		} else {
+			sb.WriteString("All conflicts fixed but you are still merging.\n")
+			sb.WriteString("  (use \"vara commit\" to conclude the merge)\n")
+		}
+	}
+
+	if mergeResolved > 0 {
+		sb.WriteString("\n")
+		sb.WriteString(color.Bold("Resolved (staged for the merge commit):") + "\n\n")
+		for _, p := range res.Merge.Resolved {
+			sb.WriteString(fmt.Sprintf("        %s\n", color.Green("resolved:   "+p)))
+		}
+	}
+
+	if mergeUnmerged > 0 {
+		sb.WriteString("\n")
+		sb.WriteString(color.BoldRed("Unmerged paths:") + "\n")
+		sb.WriteString("  (use \"vara resolve\", \"vara add\", or \"vara rm\" as appropriate)\n\n")
+		for _, c := range res.Merge.Unmerged {
+			sb.WriteString(fmt.Sprintf("        %s\n", color.BoldRed(c.Long+":   "+c.Path)))
+		}
+	}
+
+	// Legacy/direct path: a caller that populated Conflicted without a Merge
+	// overlay (e.g. the short-format golden path) still renders here.
+	if res.Merge == nil && len(res.Conflicted) > 0 {
 		sb.WriteString("\n")
 		sb.WriteString(color.BoldRed("Unresolved conflicts:") + "\n")
 		sb.WriteString("  (fix conflicts then run \"vara commit\")\n\n")
@@ -123,6 +179,14 @@ func FormatShort(res *StatusResult) string {
 	}
 	for _, p := range res.Conflicted {
 		sb.WriteString(fmt.Sprintf("UU %s\n", p))
+	}
+	if res.Merge != nil {
+		for _, c := range res.Merge.Unmerged {
+			sb.WriteString(fmt.Sprintf("%s %s\n", c.Short, c.Path))
+		}
+		for _, p := range res.Merge.Resolved {
+			sb.WriteString(fmt.Sprintf("M  %s\n", p)) // resolved, staged for the merge commit
+		}
 	}
 
 	return sb.String()

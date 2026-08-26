@@ -2,7 +2,8 @@
 //
 // This file implements the `vara switch` command (RFC-0012 §2).
 // Depends on: RFC-0004 (refs), RFC-0005 (index), RFC-0006 (locking/transaction),
-//             RFC-0007 (commit graph), RFC-0009 (snapshots).
+//
+//	RFC-0007 (commit graph), RFC-0009 (snapshots).
 package commands
 
 import (
@@ -145,7 +146,7 @@ func RunSwitch(ctx *Context, targetBranch string) (string, error) {
 
 	// 12. Append a reflog entry for HEAD (RFC-0004 §4 step 6).
 	rm := reflog.NewManager(ctx.Repository.VaraDir)
-	rm.Append("HEAD", currentCommitID, targetCommitID, "User <user@example.com>",
+	rm.Append("HEAD", currentCommitID, targetCommitID, reflogActor(ctx.Repository.VaraDir),
 		fmt.Sprintf("switch: moving from %s to %s", currentBranchName, targetBranch))
 
 	if err := txn.SetState(transaction.StateCommit); err != nil {

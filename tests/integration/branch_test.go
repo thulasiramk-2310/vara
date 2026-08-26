@@ -27,6 +27,7 @@ func TestBranchCommand(t *testing.T) {
 		Repository: repo,
 		Index:      idx,
 	}
+	setTestIdentity(t, repoDir)
 
 	// 1. Initial Commit
 	os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("data"), 0644)

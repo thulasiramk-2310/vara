@@ -28,7 +28,7 @@ func RunBranch(ctx *Context, name string) (string, error) {
 				continue
 			}
 			branchName := strings.TrimPrefix(ref.Name, "refs/heads/")
-			
+
 			if headTarget == ref.Name {
 				sb.WriteString(fmt.Sprintf("* %s\n", branchName))
 			} else {
@@ -50,10 +50,9 @@ func RunBranch(ctx *Context, name string) (string, error) {
 		return "", fmt.Errorf("cannot create branch '%s': %v", name, err)
 	}
 
-	// Update reflog for the new branch
-	author := "User <user@example.com>" // Hardcoded for now
+	// Update reflog for the new branch (local metadata; identity is best-effort).
 	rm := reflog.NewManager(ctx.Repository.VaraDir)
-	rm.Append(branchRef, types.CommitID{}, headCommit, author, "branch: Created from HEAD")
+	rm.Append(branchRef, types.CommitID{}, headCommit, reflogActor(ctx.Repository.VaraDir), "branch: Created from HEAD")
 
 	return "", nil
 }

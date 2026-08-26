@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/thulasiramk-2310/vara/internal/commands"
+	"github.com/thulasiramk-2310/vara/internal/devidentity"
 	"github.com/thulasiramk-2310/vara/internal/repository"
 	"github.com/thulasiramk-2310/vara/pkg/index"
 )
@@ -26,6 +27,13 @@ func newCtx(b *testing.B) (*commands.Context, string) {
 	repo, err := repository.Init(dir)
 	if err != nil {
 		b.Fatalf("init: %v", err)
+	}
+	// Commits require a configured identity (RFC-0017).
+	if err := devidentity.SetRepo(repo.VaraDir, devidentity.Identity{
+		Name:  "Bench Developer",
+		Email: "bench@example.com",
+	}); err != nil {
+		b.Fatalf("set identity: %v", err)
 	}
 	return &commands.Context{Repository: repo, Index: index.New()}, dir
 }
