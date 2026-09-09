@@ -11,6 +11,7 @@ import (
 	"github.com/thulasiramk-2310/vara/internal/locking"
 	mergeengine "github.com/thulasiramk-2310/vara/internal/merge"
 	"github.com/thulasiramk-2310/vara/internal/mergestate"
+	"github.com/thulasiramk-2310/vara/internal/smartmerge"
 	"github.com/thulasiramk-2310/vara/internal/transaction"
 	"github.com/thulasiramk-2310/vara/pkg/builder"
 	"github.com/thulasiramk-2310/vara/pkg/graph"
@@ -386,6 +387,7 @@ func refineConflicts(ctx *Context, store *object.Store, ourCommit, theirCommit t
 	}
 
 	st := &mergestate.State{Version: mergestate.Version, OurLabel: ourLabel, TheirLabel: theirLabel}
+	cfg, _ := loadConfig(ctx.Repository.VaraDir) // nil on error → structural drivers stay off
 	for _, p := range conflicts {
 		base := sideOf(baseMap, p)
 		ours := sideOf(ourMap, p)
@@ -417,6 +419,19 @@ func refineConflicts(ctx *Context, store *object.Store, ourCommit, theirCommit t
 			}
 			st.Entries = append(st.Entries, mergestate.Entry{Path: p, Kind: mergestate.KindContent, Base: base, Ours: ours, Theirs: theirs})
 			continue
+		}
+
+		// Structural (semantic) merge, opt-in per type (RFC-0025). Engages only for
+		// registered types the repo enabled; a clean structural merge auto-resolves
+		// what the line merge false-conflicted on. On parse failure or a genuine
+		// same-leaf conflict it falls through to the line merge below.
+		if smartmerge.StructuralJSON(p, cfg) {
+			if m, clean, parseOK := smartmerge.MergeJSON(bb, ob, tb); parseOK && clean {
+				if err := restageResolved(ctx, store, p, m); err != nil {
+					return nil, false, err
+				}
+				continue // structurally auto-resolved — not a conflict
+			}
 		}
 
 		merged, stats := conflict.Render(bb, ob, tb, ourLabel, theirLabel, style)
