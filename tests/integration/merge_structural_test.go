@@ -78,6 +78,51 @@ func TestStructuralMergeAutoResolvesJSON(t *testing.T) {
 	}
 }
 
+// TestStructuralMergeAutoResolvesYAML: same win for YAML. Flow style ({a: 1, b: 2})
+// keeps both keys on one line so the line merger conflicts; the structural YAML
+// driver auto-resolves to the combined mapping (re-emitted in block style).
+func TestStructuralMergeAutoResolvesYAML(t *testing.T) {
+	ctx, dir := setupRepo(t)
+	writeFile(t, dir, "conf.yaml", "{a: 1, b: 2}\n")
+	makeCommit(t, ctx, "base")
+
+	if _, err := commands.RunBranch(ctx, "feature"); err != nil {
+		t.Fatalf("branch: %v", err)
+	}
+	if _, err := commands.RunSwitch(ctx, "feature"); err != nil {
+		t.Fatalf("switch: %v", err)
+	}
+	writeFile(t, dir, "conf.yaml", "{a: 1, b: 20}\n")
+	makeCommit(t, ctx, "feature edits b")
+
+	if _, err := commands.RunSwitch(ctx, "main"); err != nil {
+		t.Fatalf("switch main: %v", err)
+	}
+	writeFile(t, dir, "conf.yaml", "{a: 10, b: 2}\n")
+	makeCommit(t, ctx, "main edits a")
+
+	cfg := config.New()
+	cfg.Set("merge", "", "driver.yaml", "structured-yaml")
+	if err := cfg.Save(filepath.Join(ctx.Repository.VaraDir, "config")); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	out, err := commands.RunMerge(ctx, "feature")
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if !strings.Contains(out, "Auto-merged all conflicts") {
+		t.Fatalf("expected a clean auto-merge, got: %q", out)
+	}
+	got := readFile(dir, "conf.yaml")
+	if strings.Contains(got, "<<<<<<<") {
+		t.Fatalf("no markers expected, got:\n%s", got)
+	}
+	if !strings.Contains(got, "a: 10") || !strings.Contains(got, "b: 20") {
+		t.Fatalf("expected combined a:10 / b:20, got:\n%s", got)
+	}
+}
+
 // TestStructuralMergeOffStillConflicts: the control — without the driver enabled,
 // the same divergence conflicts through the line merger, proving structural merge
 // is genuinely what resolved it (and that it is opt-in).

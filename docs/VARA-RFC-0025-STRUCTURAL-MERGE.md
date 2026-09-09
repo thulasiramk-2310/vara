@@ -31,9 +31,15 @@ exactly today's line merge; structural merge only engages for registered types.
 **In scope (Phase 1):**
 - A merge-driver abstraction selected by file type, with the current line/diff3
   merge as the default driver.
-- A structural driver for **JSON** (with a framework other structured types plug
-  into), performing a node-level three-way merge.
+- Structural drivers for **JSON and YAML** (sharing one node-level three-way
+  merge core; other structured types plug into the same framework).
 - Deterministic, reproducible output and a safe fallback to line merge.
+
+**YAML note:** decoding to a plain tree drops comments, so a clean structural
+YAML merge does not preserve them (see §12); the driver is opt-in per repo and
+falls back to the line merge on any parse failure or genuine conflict, so it only
+reformats a file it actually merges. YAML requires one dependency
+(`gopkg.in/yaml.v3`, pure-Go, no CGO).
 
 **In scope (Phase 2, specified but deferred):**
 - **First-class conflicts**: committing a conflicted state and resolving later.

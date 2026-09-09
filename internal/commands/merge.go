@@ -425,8 +425,8 @@ func refineConflicts(ctx *Context, store *object.Store, ourCommit, theirCommit t
 		// registered types the repo enabled; a clean structural merge auto-resolves
 		// what the line merge false-conflicted on. On parse failure or a genuine
 		// same-leaf conflict it falls through to the line merge below.
-		if smartmerge.StructuralJSON(p, cfg) {
-			if m, clean, parseOK := smartmerge.MergeJSON(bb, ob, tb); parseOK && clean {
+		if driver := smartmerge.SelectDriver(p, cfg); driver != "" {
+			if m, clean, parseOK := smartmerge.Merge(driver, bb, ob, tb); parseOK && clean {
 				if err := restageResolved(ctx, store, p, m); err != nil {
 					return nil, false, err
 				}

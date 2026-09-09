@@ -14,30 +14,60 @@ package smartmerge
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/thulasiramk-2310/vara/pkg/config"
 )
 
-// structuralDriver is the config value that enables structural merge for a type.
-const structuralDriver = "structured-json"
+// Driver config values that enable a structural merge for a file type.
+const (
+	driverJSON = "structured-json"
+	driverYAML = "structured-yaml"
+)
 
-// StructuralJSON reports whether the JSON structural driver is enabled for path.
-// It is opt-in: true only when repo config sets `[merge] driver.json =
-// structured-json`. A nil config (or any other value) yields false, so the
-// default everywhere stays the line merge.
-func StructuralJSON(path string, cfg *config.Config) bool {
+// SelectDriver returns the structural driver enabled for path, or "" for the
+// default line merge. Opt-in per repo (RFC-0025 §4): a structural driver engages
+// only when config sets a matching `merge.driver.<ext>` value; a nil config or
+// any other value keeps the line merge.
+func SelectDriver(path string, cfg *config.Config) string {
 	if cfg == nil {
-		return false
+		return ""
 	}
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-	if ext != "json" {
-		return false
+	key := ext
+	if ext == "yml" {
+		key = "yaml" // .yml and .yaml share the `merge.driver.yaml` setting
 	}
-	v, ok := cfg.Get("merge", "", "driver."+ext)
-	return ok && v == structuralDriver
+	v, ok := cfg.Get("merge", "", "driver."+key)
+	if !ok {
+		return ""
+	}
+	switch {
+	case ext == "json" && v == driverJSON:
+		return driverJSON
+	case (ext == "yaml" || ext == "yml") && v == driverYAML:
+		return driverYAML
+	}
+	return ""
+}
+
+// Merge runs the named structural driver, returning (merged, clean, parseOK) —
+// the same contract as the per-format functions. An unknown driver reports
+// parseOK=false so the caller falls back to the line merge.
+func Merge(driver string, base, ours, theirs []byte) (merged []byte, clean bool, parseOK bool) {
+	switch driver {
+	case driverJSON:
+		return MergeJSON(base, ours, theirs)
+	case driverYAML:
+		return MergeYAML(base, ours, theirs)
+	default:
+		return nil, false, false
+	}
 }
 
 // MergeJSON performs a three-way structural merge of JSON documents.
@@ -73,6 +103,63 @@ func MergeJSON(base, ours, theirs []byte) (merged []byte, clean bool, parseOK bo
 		return nil, false, false
 	}
 	return append(out, '\n'), true, true
+}
+
+// MergeYAML performs a three-way structural merge of YAML documents, reusing the
+// same tree merge as JSON. Output is canonical YAML (yaml.v3 sorts map keys), so
+// it is order-independent.
+//
+// NOTE: decoding into a plain tree drops comments, so a clean structural YAML
+// merge does not preserve them (RFC-0025 §12 — comment-preserving merge is
+// deferred). The caller falls back to the line merge on parse failure or a
+// genuine same-leaf conflict, so this only reformats a file it actually merges.
+func MergeYAML(base, ours, theirs []byte) (merged []byte, clean bool, parseOK bool) {
+	var b, o, t any
+	if err := yaml.Unmarshal(base, &b); err != nil {
+		return nil, false, false
+	}
+	if err := yaml.Unmarshal(ours, &o); err != nil {
+		return nil, false, false
+	}
+	if err := yaml.Unmarshal(theirs, &t); err != nil {
+		return nil, false, false
+	}
+
+	m, conflict := valueMerge(normalizeYAML(b), normalizeYAML(o), normalizeYAML(t))
+	if conflict {
+		return nil, false, true
+	}
+	out, err := yaml.Marshal(m)
+	if err != nil {
+		return nil, false, false
+	}
+	return out, true, true
+}
+
+// normalizeYAML converts any map[any]any (which some YAML shapes decode to) into
+// map[string]any recursively, so the shared tree merge sees the same value model
+// as JSON regardless of the decoder's map representation.
+func normalizeYAML(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		for k, val := range t {
+			t[k] = normalizeYAML(val)
+		}
+		return t
+	case map[any]any:
+		out := make(map[string]any, len(t))
+		for k, val := range t {
+			out[fmt.Sprint(k)] = normalizeYAML(val)
+		}
+		return out
+	case []any:
+		for i, val := range t {
+			t[i] = normalizeYAML(val)
+		}
+		return t
+	default:
+		return v
+	}
 }
 
 // valueMerge three-way merges two present values against their common base,
