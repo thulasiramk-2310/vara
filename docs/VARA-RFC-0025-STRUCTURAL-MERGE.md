@@ -31,9 +31,15 @@ exactly today's line merge; structural merge only engages for registered types.
 **In scope (Phase 1):**
 - A merge-driver abstraction selected by file type, with the current line/diff3
   merge as the default driver.
-- Structural drivers for **JSON and YAML** (sharing one node-level three-way
-  merge core; other structured types plug into the same framework).
+- Structural drivers for **JSON, YAML, and TOML** (sharing one node-level
+  three-way merge core; other structured types plug into the same framework).
 - Deterministic, reproducible output and a safe fallback to line merge.
+
+**Per-driver conflict rendering:** JSON and YAML render genuine same-key clashes
+as per-key markers (only the diverging key is wrapped). TOML currently renders
+only the clean merge; a TOML conflict falls back to the line merge (per-key TOML
+markers need table-header rendering — deferred). TOML adds one dependency
+(`github.com/pelletier/go-toml/v2`, pure-Go, no CGO).
 
 **YAML note:** decoding to a plain tree drops comments, so a clean structural
 YAML merge does not preserve them (see §12); the driver is opt-in per repo and

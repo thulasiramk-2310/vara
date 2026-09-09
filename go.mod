@@ -4,6 +4,7 @@ go 1.25.4
 
 require (
 	github.com/klauspost/compress v1.18.6
+	github.com/pelletier/go-toml/v2 v2.4.3
 	golang.org/x/crypto v0.54.0
 	gopkg.in/yaml.v3 v3.0.1
 )

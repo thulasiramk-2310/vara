@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	toml "github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
 	"github.com/thulasiramk-2310/vara/pkg/config"
@@ -158,6 +159,56 @@ func TestMergeYAMLPerKeyConflict(t *testing.T) {
 func TestMergeYAMLMalformedFallsBack(t *testing.T) {
 	if r := mergeYAML("a:\n\tb: 1\n", "a: 1\n", "a: 2\n"); r.ParseOK {
 		t.Fatalf("unparseable YAML must report ParseOK=false, got %+v", r)
+	}
+}
+
+// --- TOML -------------------------------------------------------------------
+
+func mergeTOML(base, ours, theirs string) Result {
+	return MergeTOML([]byte(base), []byte(ours), []byte(theirs))
+}
+
+func TestMergeTOMLIndependentKeys(t *testing.T) {
+	r := mergeTOML("a = 1\nb = 2\n", "a = 10\nb = 2\n", "a = 1\nb = 20\n")
+	if !r.ParseOK || r.Conflicts != 0 {
+		t.Fatalf("expected a clean structural TOML merge, got %+v", r)
+	}
+	var v map[string]any
+	if err := toml.Unmarshal(r.Merged, &v); err != nil {
+		t.Fatalf("merged output is not valid TOML: %v\n%s", err, r.Merged)
+	}
+	want := map[string]any{"a": int64(10), "b": int64(20)}
+	if !reflect.DeepEqual(v, want) {
+		t.Fatalf("merged = %#v, want %#v", v, want)
+	}
+}
+
+func TestMergeTOMLConflictFallsBack(t *testing.T) {
+	r := mergeTOML("a = 1\n", "a = 10\n", "a = 20\n")
+	if !r.ParseOK || r.Conflicts == 0 {
+		t.Fatalf("same-key clash must conflict, got %+v", r)
+	}
+	if r.Rendered {
+		t.Fatal("TOML conflicts have no per-key renderer yet — must fall back (Rendered=false)")
+	}
+}
+
+func TestMergeTOMLDeterministicOutput(t *testing.T) {
+	// Clean merge must be byte-stable regardless of ours/theirs order (the
+	// marshaler must sort keys), or the working file would churn on every merge.
+	m1 := mergeTOML("a = 1\nb = 2\nc = 3\n", "a = 10\nb = 2\nc = 3\n", "a = 1\nb = 20\nc = 3\n")
+	m2 := mergeTOML("a = 1\nb = 2\nc = 3\n", "a = 1\nb = 20\nc = 3\n", "a = 10\nb = 2\nc = 3\n")
+	if m1.Conflicts != 0 || m2.Conflicts != 0 {
+		t.Fatal("both directions should be clean")
+	}
+	if string(m1.Merged) != string(m2.Merged) {
+		t.Fatalf("TOML merge must be order-independent / sorted:\n%s\nvs\n%s", m1.Merged, m2.Merged)
+	}
+}
+
+func TestMergeTOMLMalformedFallsBack(t *testing.T) {
+	if r := mergeTOML("a = = 1\n", "a = 1\n", "a = 2\n"); r.ParseOK {
+		t.Fatalf("unparseable TOML must report ParseOK=false, got %+v", r)
 	}
 }
 

@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	toml "github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
 	"github.com/thulasiramk-2310/vara/pkg/config"
@@ -35,6 +36,7 @@ import (
 const (
 	driverJSON = "structured-json"
 	driverYAML = "structured-yaml"
+	driverTOML = "structured-toml"
 )
 
 // Result is the outcome of a structural merge.
@@ -79,6 +81,8 @@ func SelectDriver(path string, cfg *config.Config) string {
 		return driverJSON
 	case (ext == "yaml" || ext == "yml") && v == driverYAML:
 		return driverYAML
+	case ext == "toml" && v == driverTOML:
+		return driverTOML
 	}
 	return ""
 }
@@ -90,9 +94,32 @@ func Merge(driver string, base, ours, theirs []byte, ourLabel, theirLabel string
 		return MergeJSON(base, ours, theirs, ourLabel, theirLabel)
 	case driverYAML:
 		return MergeYAML(base, ours, theirs, ourLabel, theirLabel)
+	case driverTOML:
+		return MergeTOML(base, ours, theirs)
 	default:
 		return Result{}
 	}
+}
+
+// MergeTOML performs a three-way structural merge of TOML documents, reusing the
+// same tree merge. Only the clean case is rendered (canonical TOML — go-toml
+// sorts map keys). A genuine conflict returns Rendered=false, so the caller falls
+// back to the line merge; per-key TOML markers (which need table-header rendering)
+// are deferred.
+func MergeTOML(base, ours, theirs []byte) Result {
+	var b, o, t any
+	if toml.Unmarshal(base, &b) != nil || toml.Unmarshal(ours, &o) != nil || toml.Unmarshal(theirs, &t) != nil {
+		return Result{}
+	}
+	m, n := mergeTree(b, o, t)
+	if n == 0 {
+		out, err := toml.Marshal(m)
+		if err != nil {
+			return Result{}
+		}
+		return Result{Merged: out, Conflicts: 0, ParseOK: true}
+	}
+	return Result{Conflicts: n, ParseOK: true} // Rendered false → line-merge fallback
 }
 
 // MergeJSON performs a three-way structural merge of JSON documents. A clean

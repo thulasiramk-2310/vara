@@ -235,6 +235,50 @@ func TestStructuralYAMLPerKeyMarkers(t *testing.T) {
 	}
 }
 
+// TestStructuralMergeAutoResolvesTOML: independent keys in a single-line inline
+// table (which the line merger conflicts on) auto-merge with the TOML driver.
+func TestStructuralMergeAutoResolvesTOML(t *testing.T) {
+	ctx, dir := setupRepo(t)
+	writeFile(t, dir, "conf.toml", "x = {a = 1, b = 2}\n")
+	makeCommit(t, ctx, "base")
+
+	if _, err := commands.RunBranch(ctx, "feature"); err != nil {
+		t.Fatalf("branch: %v", err)
+	}
+	if _, err := commands.RunSwitch(ctx, "feature"); err != nil {
+		t.Fatalf("switch: %v", err)
+	}
+	writeFile(t, dir, "conf.toml", "x = {a = 1, b = 20}\n")
+	makeCommit(t, ctx, "feature edits b")
+
+	if _, err := commands.RunSwitch(ctx, "main"); err != nil {
+		t.Fatalf("switch main: %v", err)
+	}
+	writeFile(t, dir, "conf.toml", "x = {a = 10, b = 2}\n")
+	makeCommit(t, ctx, "main edits a")
+
+	cfg := config.New()
+	cfg.Set("merge", "", "driver.toml", "structured-toml")
+	if err := cfg.Save(filepath.Join(ctx.Repository.VaraDir, "config")); err != nil {
+		t.Fatalf("config: %v", err)
+	}
+
+	out, err := commands.RunMerge(ctx, "feature")
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if !strings.Contains(out, "Auto-merged all conflicts") {
+		t.Fatalf("expected a clean auto-merge, got: %q", out)
+	}
+	got := readFile(dir, "conf.toml")
+	if strings.Contains(got, "<<<<<<<") {
+		t.Fatalf("no markers expected, got:\n%s", got)
+	}
+	if !strings.Contains(got, "a = 10") || !strings.Contains(got, "b = 20") {
+		t.Fatalf("expected combined a=10 / b=20, got:\n%s", got)
+	}
+}
+
 // TestStructuralMergeOffStillConflicts: the control — without the driver enabled,
 // the same divergence conflicts through the line merger, proving structural merge
 // is genuinely what resolved it (and that it is opt-in).
