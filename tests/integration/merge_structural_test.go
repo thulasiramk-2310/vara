@@ -186,6 +186,55 @@ func TestStructuralPerKeyConflictMarkers(t *testing.T) {
 	}
 }
 
+// TestStructuralYAMLPerKeyMarkers: a YAML key clash renders per-key markers too
+// (clean key kept), and resolves.
+func TestStructuralYAMLPerKeyMarkers(t *testing.T) {
+	ctx, dir := setupRepo(t)
+	writeFile(t, dir, "conf.yaml", "{a: 1, b: 2}\n")
+	makeCommit(t, ctx, "base")
+
+	if _, err := commands.RunBranch(ctx, "feature"); err != nil {
+		t.Fatalf("branch: %v", err)
+	}
+	if _, err := commands.RunSwitch(ctx, "feature"); err != nil {
+		t.Fatalf("switch: %v", err)
+	}
+	writeFile(t, dir, "conf.yaml", "{a: 1, b: 8}\n")
+	makeCommit(t, ctx, "feature edits b")
+
+	if _, err := commands.RunSwitch(ctx, "main"); err != nil {
+		t.Fatalf("switch main: %v", err)
+	}
+	writeFile(t, dir, "conf.yaml", "{a: 10, b: 9}\n")
+	makeCommit(t, ctx, "main edits a and b")
+
+	cfg := config.New()
+	cfg.Set("merge", "", "driver.yaml", "structured-yaml")
+	if err := cfg.Save(filepath.Join(ctx.Repository.VaraDir, "config")); err != nil {
+		t.Fatalf("config: %v", err)
+	}
+
+	out, err := commands.RunMerge(ctx, "feature")
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if !strings.Contains(out, "Automatic merge failed") {
+		t.Fatalf("a genuine YAML key clash must conflict, got: %q", out)
+	}
+	got := readFile(dir, "conf.yaml")
+	if !strings.Contains(got, "a: 10") || !strings.Contains(got, "<<<<<<<") || !strings.Contains(got, "b:") {
+		t.Fatalf("expected clean 'a: 10' plus per-key markers on 'b':\n%s", got)
+	}
+	ctx = reloadCtx(t, ctx)
+	if _, err := commands.RunResolve(ctx, commands.ResolveArgs{Strategy: conflict.Ours}); err != nil {
+		t.Fatalf("resolve --ours: %v", err)
+	}
+	ctx = reloadCtx(t, ctx)
+	if _, err := commands.RunCommit(ctx, "merge feature"); err != nil {
+		t.Fatalf("commit after resolve: %v", err)
+	}
+}
+
 // TestStructuralMergeOffStillConflicts: the control — without the driver enabled,
 // the same divergence conflicts through the line merger, proving structural merge
 // is genuinely what resolved it (and that it is opt-in).

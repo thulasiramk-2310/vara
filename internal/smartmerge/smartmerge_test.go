@@ -119,8 +119,12 @@ func TestMergeJSONOrderIndependent(t *testing.T) {
 
 // --- YAML -------------------------------------------------------------------
 
+func mergeYAML(base, ours, theirs string) Result {
+	return MergeYAML([]byte(base), []byte(ours), []byte(theirs), "main", "feature")
+}
+
 func TestMergeYAMLIndependentKeys(t *testing.T) {
-	r := MergeYAML([]byte("a: 1\nb: 2\n"), []byte("a: 10\nb: 2\n"), []byte("a: 1\nb: 20\n"))
+	r := mergeYAML("a: 1\nb: 2\n", "a: 10\nb: 2\n", "a: 1\nb: 20\n")
 	if !r.ParseOK || r.Conflicts != 0 {
 		t.Fatalf("expected a clean structural YAML merge, got %+v", r)
 	}
@@ -134,19 +138,25 @@ func TestMergeYAMLIndependentKeys(t *testing.T) {
 	}
 }
 
-func TestMergeYAMLConflictFallsBack(t *testing.T) {
-	// Same-key clash: parsed, conflicts, but not rendered → caller uses line merge.
-	r := MergeYAML([]byte("a: 1\n"), []byte("a: 10\n"), []byte("a: 20\n"))
-	if !r.ParseOK || r.Conflicts == 0 {
-		t.Fatalf("same-key clash must conflict, got %+v", r)
+func TestMergeYAMLPerKeyConflict(t *testing.T) {
+	// "a" resolves cleanly; "b" diverges → per-key YAML markers, clean key kept.
+	r := mergeYAML("a: 1\nb: 2\n", "a: 10\nb: 9\n", "a: 1\nb: 8\n")
+	if !r.ParseOK || r.Conflicts != 1 || !r.Rendered {
+		t.Fatalf("expected one rendered YAML conflict, got %+v", r)
 	}
-	if r.Rendered {
-		t.Fatal("YAML conflicts have no per-key renderer yet — must fall back (Rendered=false)")
+	out := string(r.Merged)
+	if !strings.Contains(out, "a: 10") {
+		t.Fatalf("clean key 'a' should be merged to 10:\n%s", out)
+	}
+	for _, want := range []string{"b:", "<<<<<<< main", "||||||| base", "=======", ">>>>>>> feature"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("YAML conflict rendering missing %q:\n%s", want, out)
+		}
 	}
 }
 
 func TestMergeYAMLMalformedFallsBack(t *testing.T) {
-	if r := MergeYAML([]byte("a:\n\tb: 1\n"), []byte("a: 1\n"), []byte("a: 2\n")); r.ParseOK {
+	if r := mergeYAML("a:\n\tb: 1\n", "a: 1\n", "a: 2\n"); r.ParseOK {
 		t.Fatalf("unparseable YAML must report ParseOK=false, got %+v", r)
 	}
 }

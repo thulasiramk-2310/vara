@@ -89,7 +89,7 @@ func Merge(driver string, base, ours, theirs []byte, ourLabel, theirLabel string
 	case driverJSON:
 		return MergeJSON(base, ours, theirs, ourLabel, theirLabel)
 	case driverYAML:
-		return MergeYAML(base, ours, theirs)
+		return MergeYAML(base, ours, theirs, ourLabel, theirLabel)
 	default:
 		return Result{}
 	}
@@ -118,7 +118,7 @@ func MergeJSON(base, ours, theirs []byte, ourLabel, theirLabel string) Result {
 // same tree merge. Only the clean case is rendered (canonical YAML — yaml.v3
 // sorts keys); a genuine conflict returns Rendered=false so the caller falls back
 // to the line merge. Comments are dropped by decoding (RFC-0025 §12).
-func MergeYAML(base, ours, theirs []byte) Result {
+func MergeYAML(base, ours, theirs []byte, ourLabel, theirLabel string) Result {
 	var b, o, t any
 	if yaml.Unmarshal(base, &b) != nil || yaml.Unmarshal(ours, &o) != nil || yaml.Unmarshal(theirs, &t) != nil {
 		return Result{}
@@ -131,7 +131,7 @@ func MergeYAML(base, ours, theirs []byte) Result {
 		}
 		return Result{Merged: out, Conflicts: 0, ParseOK: true}
 	}
-	return Result{Conflicts: n, ParseOK: true} // Rendered false → line-merge fallback
+	return Result{Merged: renderYAML(m, ourLabel, theirLabel), Conflicts: n, ParseOK: true, Rendered: true}
 }
 
 // normalizeYAML converts any map[any]any into map[string]any recursively, so the
@@ -329,6 +329,116 @@ func writeSide(b *bytes.Buffer, v any, indent string) {
 	b.WriteString(indent)
 	b.Write(sb)
 	b.WriteByte('\n')
+}
+
+// --- per-key YAML conflict renderer ----------------------------------------
+//
+// Only the "spine" of maps leading to a conflict is hand-emitted; every clean
+// subtree (and every scalar, with its quoting) is delegated to yaml.Marshal, so
+// YAML's formatting nuances stay correct. Marker lines sit at column 0.
+
+func renderYAML(v any, ourLabel, theirLabel string) []byte {
+	var b bytes.Buffer
+	writeYAMLNode(&b, v, "", ourLabel, theirLabel)
+	return b.Bytes()
+}
+
+func writeYAMLNode(b *bytes.Buffer, v any, indent, ourLabel, theirLabel string) {
+	switch t := v.(type) {
+	case conflictMark:
+		writeYAMLConflict(b, t, indent, ourLabel, theirLabel)
+	case map[string]any:
+		for _, k := range sortedKeys(t) {
+			val := t[k]
+			key := yamlKey(k)
+			if cm, ok := val.(conflictMark); ok {
+				b.WriteString(indent + key + ":\n")
+				writeYAMLConflict(b, cm, indent+"  ", ourLabel, theirLabel)
+			} else if containsConflict(val) {
+				// A nested subtree holds a conflict — recurse into the spine.
+				b.WriteString(indent + key + ":\n")
+				writeYAMLNode(b, val, indent+"  ", ourLabel, theirLabel)
+			} else {
+				// Clean value: let yaml.Marshal render it natively, then indent.
+				mb, _ := yaml.Marshal(map[string]any{k: val})
+				writeIndented(b, mb, indent)
+			}
+		}
+	default:
+		// Top-level scalar/sequence with no conflict, or a leftover — marshal it.
+		mb, _ := yaml.Marshal(v)
+		writeIndented(b, mb, indent)
+	}
+}
+
+func writeYAMLConflict(b *bytes.Buffer, cm conflictMark, indent, ourLabel, theirLabel string) {
+	b.WriteString("<<<<<<< " + ourLabel + "\n")
+	writeYAMLSide(b, cm.ours, indent)
+	b.WriteString("||||||| base\n")
+	writeYAMLSide(b, cm.base, indent)
+	b.WriteString("=======\n")
+	writeYAMLSide(b, cm.theirs, indent)
+	b.WriteString(">>>>>>> " + theirLabel + "\n")
+}
+
+func writeYAMLSide(b *bytes.Buffer, v any, indent string) {
+	if _, isAbsent := v.(absentT); isAbsent {
+		return // deleted side → empty section
+	}
+	mb, err := yaml.Marshal(v)
+	if err != nil {
+		return
+	}
+	writeIndented(b, mb, indent)
+}
+
+// yamlKey renders a map key as YAML (quoting it if needed) without a trailing
+// newline or value.
+func yamlKey(k string) string {
+	mb, err := yaml.Marshal(map[string]any{k: nil})
+	if err != nil {
+		return k
+	}
+	// yaml.Marshal(map{k:nil}) → "k: null\n"; take the key portion before ": ".
+	line := strings.TrimRight(string(mb), "\n")
+	if i := strings.LastIndex(line, ": "); i >= 0 {
+		return line[:i]
+	}
+	return k
+}
+
+// writeIndented prefixes each non-empty line of data with indent.
+func writeIndented(b *bytes.Buffer, data []byte, indent string) {
+	for _, line := range strings.Split(strings.TrimRight(string(data), "\n"), "\n") {
+		if line == "" {
+			b.WriteByte('\n')
+			continue
+		}
+		b.WriteString(indent)
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+}
+
+// containsConflict reports whether v holds a conflictMark anywhere within it.
+func containsConflict(v any) bool {
+	switch t := v.(type) {
+	case conflictMark:
+		return true
+	case map[string]any:
+		for _, x := range t {
+			if containsConflict(x) {
+				return true
+			}
+		}
+	case []any:
+		for _, x := range t {
+			if containsConflict(x) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func sortedKeys(m map[string]any) []string {

@@ -131,12 +131,13 @@ unchanged. Two additions:
 - The working-tree rendering of a structural conflict is the merged document with
   a conflict block *only around the diverging value*, marked with the same
   `<<<<<<< / ||||||| / ======= / >>>>>>>` family so existing tooling, the commit
-  gate, and `vara resolve` continue to recognize it. **Implemented for JSON**
-  (clean keys stay merged; only the diverging key is wrapped, with a `base`
+  gate, and `vara resolve` continue to recognize it. **Implemented for JSON and
+  YAML** (clean keys stay merged; only the diverging key is wrapped, with a `base`
   section and an empty side for a deleted key). Both `vara merge` and
-  `vara resolve --auto` produce it. **YAML** conflict rendering is not yet
-  implemented — a YAML conflict falls back to the line merge. `resolve
-  --ours/--theirs` writes the whole chosen side (blob-based), unchanged.
+  `vara resolve --auto` produce it. For YAML, only the map "spine" leading to a
+  conflict is hand-emitted; every clean subtree and scalar is rendered by
+  `yaml.Marshal`, so quoting/nesting stay correct (comments are still dropped,
+  §12). `resolve --ours/--theirs` writes the whole chosen side (blob-based).
 
 No new on-disk *object* format; the sidecar is command-layer state (RFC-0008
 follow-up), so this remains outside the freeze.
