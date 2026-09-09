@@ -3,6 +3,7 @@ package smartmerge
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -10,119 +11,147 @@ import (
 	"github.com/thulasiramk-2310/vara/pkg/config"
 )
 
-// decode re-parses merged bytes so assertions compare structure, not whitespace.
 func decode(t *testing.T, b []byte) any {
 	t.Helper()
 	var v any
 	if err := json.Unmarshal(b, &v); err != nil {
-		t.Fatalf("merged output is not valid JSON: %v\n%s", err, b)
+		t.Fatalf("output is not valid JSON: %v\n%s", err, b)
 	}
 	return v
 }
 
-func TestMergeJSONIndependentKeys(t *testing.T) {
-	// The headline case: compact JSON the line merger conflicts on, because both
-	// edits are on the same line — but they touch different keys.
-	base := []byte(`{"a":1,"b":2}`)
-	ours := []byte(`{"a":10,"b":2}`)
-	theirs := []byte(`{"a":1,"b":20}`)
+func mergeJSON(base, ours, theirs string) Result {
+	return MergeJSON([]byte(base), []byte(ours), []byte(theirs), "main", "feature")
+}
 
-	merged, clean, parseOK := MergeJSON(base, ours, theirs)
-	if !parseOK || !clean {
-		t.Fatalf("expected a clean structural merge, got clean=%v parseOK=%v", clean, parseOK)
+// --- clean structural merges ------------------------------------------------
+
+func TestMergeJSONIndependentKeys(t *testing.T) {
+	r := mergeJSON(`{"a":1,"b":2}`, `{"a":10,"b":2}`, `{"a":1,"b":20}`)
+	if !r.ParseOK || r.Conflicts != 0 {
+		t.Fatalf("expected a clean merge, got %+v", r)
 	}
 	want := map[string]any{"a": float64(10), "b": float64(20)}
-	if got := decode(t, merged); !reflect.DeepEqual(got, want) {
+	if got := decode(t, r.Merged); !reflect.DeepEqual(got, want) {
 		t.Fatalf("merged = %v, want %v", got, want)
 	}
 }
 
-func TestMergeJSONSameKeyConflicts(t *testing.T) {
-	base := []byte(`{"a":1}`)
-	ours := []byte(`{"a":10}`)
-	theirs := []byte(`{"a":20}`)
-	_, clean, parseOK := MergeJSON(base, ours, theirs)
-	if !parseOK {
-		t.Fatal("expected parseOK")
+func TestMergeJSONNestedIndependent(t *testing.T) {
+	r := mergeJSON(`{"cfg":{"a":1,"b":2}}`, `{"cfg":{"a":9,"b":2}}`, `{"cfg":{"a":1,"b":8}}`)
+	if !r.ParseOK || r.Conflicts != 0 {
+		t.Fatalf("expected clean, got %+v", r)
 	}
-	if clean {
-		t.Fatal("same key changed differently must NOT be clean (falls back to line merge)")
-	}
-}
-
-func TestMergeJSONOneSideEqualsBase(t *testing.T) {
-	base := []byte(`{"a":1,"b":2}`)
-	ours := []byte(`{"a":1,"b":2}`) // unchanged
-	theirs := []byte(`{"a":1,"b":99}`)
-	merged, clean, parseOK := MergeJSON(base, ours, theirs)
-	if !parseOK || !clean {
-		t.Fatalf("clean=%v parseOK=%v", clean, parseOK)
-	}
-	want := map[string]any{"a": float64(1), "b": float64(99)}
-	if got := decode(t, merged); !reflect.DeepEqual(got, want) {
+	want := map[string]any{"cfg": map[string]any{"a": float64(9), "b": float64(8)}}
+	if got := decode(t, r.Merged); !reflect.DeepEqual(got, want) {
 		t.Fatalf("merged = %v, want %v", got, want)
 	}
 }
 
 func TestMergeJSONAddDistinctKeys(t *testing.T) {
-	base := []byte(`{"a":1}`)
-	ours := []byte(`{"a":1,"x":true}`)
-	theirs := []byte(`{"a":1,"y":false}`)
-	merged, clean, _ := MergeJSON(base, ours, theirs)
-	if !clean {
-		t.Fatal("adding distinct keys should merge clean")
+	r := mergeJSON(`{"a":1}`, `{"a":1,"x":true}`, `{"a":1,"y":false}`)
+	if r.Conflicts != 0 {
+		t.Fatalf("adding distinct keys should be clean, got %+v", r)
 	}
 	want := map[string]any{"a": float64(1), "x": true, "y": false}
-	if got := decode(t, merged); !reflect.DeepEqual(got, want) {
+	if got := decode(t, r.Merged); !reflect.DeepEqual(got, want) {
 		t.Fatalf("merged = %v, want %v", got, want)
 	}
 }
 
-func TestMergeJSONModifyDeleteKeyConflicts(t *testing.T) {
-	base := []byte(`{"a":1}`)
-	ours := []byte(`{"a":2}`) // modified
-	theirs := []byte(`{}`)    // deleted
-	_, clean, parseOK := MergeJSON(base, ours, theirs)
-	if !parseOK || clean {
-		t.Fatalf("modify/delete of a key must conflict, got clean=%v parseOK=%v", clean, parseOK)
+// --- per-key conflict rendering ---------------------------------------------
+
+func TestMergeJSONPerKeyConflictMarkers(t *testing.T) {
+	// "a" resolves cleanly (only ours changed); "b" diverges → per-key markers.
+	r := mergeJSON(`{"a":1,"b":2}`, `{"a":10,"b":9}`, `{"a":1,"b":8}`)
+	if !r.ParseOK || r.Conflicts != 1 || !r.Rendered {
+		t.Fatalf("expected one rendered conflict, got %+v", r)
+	}
+	out := string(r.Merged)
+	// Clean key merged in place.
+	if !strings.Contains(out, `"a": 10`) {
+		t.Fatalf("clean key 'a' should be merged to 10:\n%s", out)
+	}
+	// Diverging key wrapped in markers pointing at "b", with all three sides.
+	for _, want := range []string{`"b":`, "<<<<<<< main", "9", "||||||| base", "2", "=======", "8", ">>>>>>> feature"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("conflict rendering missing %q:\n%s", want, out)
+		}
+	}
+	// It must NOT be valid JSON (it carries markers) — sanity that markers exist.
+	if !strings.Contains(out, "<<<<<<<") {
+		t.Fatalf("expected conflict markers:\n%s", out)
 	}
 }
 
-func TestMergeJSONNestedIndependent(t *testing.T) {
-	base := []byte(`{"cfg":{"a":1,"b":2}}`)
-	ours := []byte(`{"cfg":{"a":9,"b":2}}`)
-	theirs := []byte(`{"cfg":{"a":1,"b":8}}`)
-	merged, clean, _ := MergeJSON(base, ours, theirs)
-	if !clean {
-		t.Fatal("independent nested-key edits should merge clean")
+func TestMergeJSONModifyDeleteKeyRenders(t *testing.T) {
+	// ours modifies "a"; theirs deletes it → conflict, theirs side empty.
+	r := mergeJSON(`{"a":1}`, `{"a":2}`, `{}`)
+	if !r.ParseOK || r.Conflicts != 1 || !r.Rendered {
+		t.Fatalf("modify/delete must render a conflict, got %+v", r)
 	}
-	want := map[string]any{"cfg": map[string]any{"a": float64(9), "b": float64(8)}}
-	if got := decode(t, merged); !reflect.DeepEqual(got, want) {
-		t.Fatalf("merged = %v, want %v", got, want)
+	out := string(r.Merged)
+	if !strings.Contains(out, "<<<<<<< main") || !strings.Contains(out, "2") {
+		t.Fatalf("expected ours side with value 2:\n%s", out)
+	}
+	// theirs deleted → the =======..>>>>>>> section has no value line between them.
+	if !strings.Contains(out, "=======\n>>>>>>> feature") {
+		t.Fatalf("deleted (theirs) side should be empty:\n%s", out)
 	}
 }
 
 func TestMergeJSONMalformedFallsBack(t *testing.T) {
-	_, _, parseOK := MergeJSON([]byte(`{`), []byte(`{"a":1}`), []byte(`{"a":2}`))
-	if parseOK {
-		t.Fatal("unparseable input must report parseOK=false so the caller falls back to line merge")
+	if r := mergeJSON(`{`, `{"a":1}`, `{"a":2}`); r.ParseOK {
+		t.Fatalf("unparseable input must report ParseOK=false, got %+v", r)
 	}
 }
 
-// TestMergeJSONOrderIndependent: swapping ours/theirs yields identical bytes.
 func TestMergeJSONOrderIndependent(t *testing.T) {
-	base := []byte(`{"a":1,"b":2}`)
-	x := []byte(`{"a":10,"b":2}`)
-	y := []byte(`{"a":1,"b":20}`)
-	m1, c1, _ := MergeJSON(base, x, y)
-	m2, c2, _ := MergeJSON(base, y, x)
-	if !c1 || !c2 {
+	m1 := mergeJSON(`{"a":1,"b":2}`, `{"a":10,"b":2}`, `{"a":1,"b":20}`)
+	m2 := mergeJSON(`{"a":1,"b":2}`, `{"a":1,"b":20}`, `{"a":10,"b":2}`)
+	if m1.Conflicts != 0 || m2.Conflicts != 0 {
 		t.Fatal("both directions should be clean")
 	}
-	if string(m1) != string(m2) {
-		t.Fatalf("structural merge must be order-independent:\n%s\nvs\n%s", m1, m2)
+	if string(m1.Merged) != string(m2.Merged) {
+		t.Fatalf("structural merge must be order-independent:\n%s\nvs\n%s", m1.Merged, m2.Merged)
 	}
 }
+
+// --- YAML -------------------------------------------------------------------
+
+func TestMergeYAMLIndependentKeys(t *testing.T) {
+	r := MergeYAML([]byte("a: 1\nb: 2\n"), []byte("a: 10\nb: 2\n"), []byte("a: 1\nb: 20\n"))
+	if !r.ParseOK || r.Conflicts != 0 {
+		t.Fatalf("expected a clean structural YAML merge, got %+v", r)
+	}
+	var v any
+	if err := yaml.Unmarshal(r.Merged, &v); err != nil {
+		t.Fatalf("merged output is not valid YAML: %v\n%s", err, r.Merged)
+	}
+	want := map[string]any{"a": 10, "b": 20}
+	if !reflect.DeepEqual(v, want) {
+		t.Fatalf("merged = %#v, want %#v", v, want)
+	}
+}
+
+func TestMergeYAMLConflictFallsBack(t *testing.T) {
+	// Same-key clash: parsed, conflicts, but not rendered → caller uses line merge.
+	r := MergeYAML([]byte("a: 1\n"), []byte("a: 10\n"), []byte("a: 20\n"))
+	if !r.ParseOK || r.Conflicts == 0 {
+		t.Fatalf("same-key clash must conflict, got %+v", r)
+	}
+	if r.Rendered {
+		t.Fatal("YAML conflicts have no per-key renderer yet — must fall back (Rendered=false)")
+	}
+}
+
+func TestMergeYAMLMalformedFallsBack(t *testing.T) {
+	if r := MergeYAML([]byte("a:\n\tb: 1\n"), []byte("a: 1\n"), []byte("a: 2\n")); r.ParseOK {
+		t.Fatalf("unparseable YAML must report ParseOK=false, got %+v", r)
+	}
+}
+
+// --- driver selection -------------------------------------------------------
 
 func TestSelectDriver(t *testing.T) {
 	if d := SelectDriver("x.json", nil); d != "" {
@@ -152,57 +181,5 @@ func TestSelectDriver(t *testing.T) {
 	cfg.Set("merge", "", "driver.json", "line")
 	if d := SelectDriver("x.json", cfg); d != "" {
 		t.Fatal("an explicit non-structural value must disable it")
-	}
-}
-
-func TestMergeYAMLIndependentKeys(t *testing.T) {
-	// Same headline case as JSON: independent keys the line merger would clash on.
-	base := []byte("a: 1\nb: 2\n")
-	ours := []byte("a: 10\nb: 2\n")
-	theirs := []byte("a: 1\nb: 20\n")
-	merged, clean, parseOK := MergeYAML(base, ours, theirs)
-	if !parseOK || !clean {
-		t.Fatalf("expected a clean structural YAML merge, got clean=%v parseOK=%v", clean, parseOK)
-	}
-	var v any
-	if err := yaml.Unmarshal(merged, &v); err != nil {
-		t.Fatalf("merged output is not valid YAML: %v\n%s", err, merged)
-	}
-	want := map[string]any{"a": 10, "b": 20} // yaml.v3 decodes ints as int
-	if !reflect.DeepEqual(v, want) {
-		t.Fatalf("merged = %#v, want %#v", v, want)
-	}
-}
-
-func TestMergeYAMLNestedIndependent(t *testing.T) {
-	base := []byte("cfg:\n  a: 1\n  b: 2\n")
-	ours := []byte("cfg:\n  a: 9\n  b: 2\n")
-	theirs := []byte("cfg:\n  a: 1\n  b: 8\n")
-	merged, clean, _ := MergeYAML(base, ours, theirs)
-	if !clean {
-		t.Fatal("independent nested YAML edits should merge clean")
-	}
-	var v any
-	if err := yaml.Unmarshal(merged, &v); err != nil {
-		t.Fatal(err)
-	}
-	want := map[string]any{"cfg": map[string]any{"a": 9, "b": 8}}
-	if !reflect.DeepEqual(v, want) {
-		t.Fatalf("merged = %#v, want %#v", v, want)
-	}
-}
-
-func TestMergeYAMLSameKeyConflicts(t *testing.T) {
-	_, clean, parseOK := MergeYAML([]byte("a: 1\n"), []byte("a: 10\n"), []byte("a: 20\n"))
-	if !parseOK || clean {
-		t.Fatalf("same-key clash must conflict, got clean=%v parseOK=%v", clean, parseOK)
-	}
-}
-
-func TestMergeYAMLMalformedFallsBack(t *testing.T) {
-	// A tab in indentation is invalid YAML.
-	_, _, parseOK := MergeYAML([]byte("a:\n\tb: 1\n"), []byte("a: 1\n"), []byte("a: 2\n"))
-	if parseOK {
-		t.Fatal("unparseable YAML must report parseOK=false so the caller falls back")
 	}
 }

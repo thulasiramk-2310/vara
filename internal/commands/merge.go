@@ -426,12 +426,24 @@ func refineConflicts(ctx *Context, store *object.Store, ourCommit, theirCommit t
 		// what the line merge false-conflicted on. On parse failure or a genuine
 		// same-leaf conflict it falls through to the line merge below.
 		if driver := smartmerge.SelectDriver(p, cfg); driver != "" {
-			if m, clean, parseOK := smartmerge.Merge(driver, bb, ob, tb); parseOK && clean {
-				if err := restageResolved(ctx, store, p, m); err != nil {
+			r := smartmerge.Merge(driver, bb, ob, tb, ourLabel, theirLabel)
+			if r.ParseOK && r.Conflicts == 0 {
+				if err := restageResolved(ctx, store, p, r.Merged); err != nil {
 					return nil, false, err
 				}
-				continue // structurally auto-resolved — not a conflict
+				continue // clean structural auto-resolve — not a conflict
 			}
+			if r.ParseOK && r.Rendered {
+				// Genuine same-key divergence: per-key markers in the worktree,
+				// recorded unresolved so commit still gates on it.
+				if err := restageResolved(ctx, store, p, r.Merged); err != nil {
+					return nil, false, err
+				}
+				st.Entries = append(st.Entries, mergestate.Entry{Path: p, Kind: mergestate.KindContent, Base: base, Ours: ours, Theirs: theirs})
+				continue
+			}
+			// parse failed, or a conflict with no structural renderer (YAML) →
+			// fall through to the line merge below.
 		}
 
 		merged, stats := conflict.Render(bb, ob, tb, ourLabel, theirLabel, style)

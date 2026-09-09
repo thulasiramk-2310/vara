@@ -29,6 +29,8 @@ import (
 
 	"github.com/thulasiramk-2310/vara/internal/conflict"
 	"github.com/thulasiramk-2310/vara/internal/mergestate"
+	"github.com/thulasiramk-2310/vara/internal/smartmerge"
+	"github.com/thulasiramk-2310/vara/pkg/config"
 	"github.com/thulasiramk-2310/vara/pkg/diff"
 	"github.com/thulasiramk-2310/vara/pkg/index"
 	"github.com/thulasiramk-2310/vara/pkg/object"
@@ -75,6 +77,7 @@ func resolveFromSidecar(ctx *Context, ra ResolveArgs, st *mergestate.State) (str
 	}
 
 	store := object.NewStore(ctx.Repository.VaraDir)
+	cfg, _ := loadConfig(ctx.Repository.VaraDir) // nil on error → structural drivers stay off
 
 	if ra.List {
 		return listConflicts(store, st, entries)
@@ -132,7 +135,7 @@ func resolveFromSidecar(ctx *Context, ra ResolveArgs, st *mergestate.State) (str
 				continue
 			}
 
-			out, stats, err := resolveContent(store, st, e, strat, ra.Style)
+			out, stats, err := resolveContent(store, st, e, strat, ra.Style, cfg)
 			if err != nil {
 				return "", fmt.Errorf("resolve %s: %w", e.Path, err)
 			}
@@ -220,7 +223,7 @@ func applyDeletion(ctx *Context, path string) error {
 //     settles disjoint edits the engine's coarser merge lumps into one conflict
 //     and leaves genuine overlaps (and hunk-level modify/delete) as markers.
 //   - union re-renders the engine's conflict and keeps both sides of each hunk.
-func resolveContent(store *object.Store, st *mergestate.State, e mergestate.Entry, strat conflict.Strategy, style conflict.MarkerStyle) ([]byte, conflict.Stats, error) {
+func resolveContent(store *object.Store, st *mergestate.State, e mergestate.Entry, strat conflict.Strategy, style conflict.MarkerStyle, cfg *config.Config) ([]byte, conflict.Stats, error) {
 	base, err := sideContent(store, e.Base)
 	if err != nil {
 		return nil, conflict.Stats{}, err
@@ -243,9 +246,17 @@ func resolveContent(store *object.Store, st *mergestate.State, e mergestate.Entr
 		total := conflict.Count(renderSides(base, ours, theirs, ourLabel, theirLabel))
 		return theirs, conflict.Stats{Total: total, Resolved: total}, nil
 	case conflict.Auto:
-		// Render settles disjoint edits and re-renders leftover conflicts in the
-		// configured style, so a partially-auto-resolved file shows the same markers
-		// a fresh merge would.
+		// A structural driver (opt-in per type) settles independent edits and, for
+		// JSON, renders leftover divergences as per-key markers — matching what a
+		// fresh `vara merge` produces, so resolve doesn't revert to line markers.
+		if driver := smartmerge.SelectDriver(e.Path, cfg); driver != "" {
+			r := smartmerge.Merge(driver, base, ours, theirs, ourLabel, theirLabel)
+			if r.ParseOK && (r.Conflicts == 0 || r.Rendered) {
+				return r.Merged, conflict.Stats{Total: r.Conflicts, Remaining: r.Conflicts}, nil
+			}
+		}
+		// Otherwise the base-aware line merge settles disjoint edits and re-renders
+		// leftover conflicts in the configured style.
 		out, stats := conflict.Render(base, ours, theirs, ourLabel, theirLabel, style)
 		return out, stats, nil
 	default: // union

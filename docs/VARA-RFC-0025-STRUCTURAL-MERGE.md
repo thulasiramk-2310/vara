@@ -130,8 +130,13 @@ unchanged. Two additions:
   paths, e.g. `/build/target`) so `status`/`resolve` can point at the exact key.
 - The working-tree rendering of a structural conflict is the merged document with
   a conflict block *only around the diverging value*, marked with the same
-  `<<<<<<< / ======= / >>>>>>>` family so existing tooling and `vara resolve`
-  continue to recognize it. `resolve --ours/--theirs` selects per conflicting key.
+  `<<<<<<< / ||||||| / ======= / >>>>>>>` family so existing tooling, the commit
+  gate, and `vara resolve` continue to recognize it. **Implemented for JSON**
+  (clean keys stay merged; only the diverging key is wrapped, with a `base`
+  section and an empty side for a deleted key). Both `vara merge` and
+  `vara resolve --auto` produce it. **YAML** conflict rendering is not yet
+  implemented — a YAML conflict falls back to the line merge. `resolve
+  --ours/--theirs` writes the whole chosen side (blob-based), unchanged.
 
 No new on-disk *object* format; the sidecar is command-layer state (RFC-0008
 follow-up), so this remains outside the freeze.

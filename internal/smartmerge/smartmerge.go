@@ -1,22 +1,29 @@
 // Package smartmerge implements the structural (semantic) merge driver from
-// VARA-RFC-0025 §5. It sits ABOVE the frozen engine: it never touches pkg/diff
-// or the object/index formats. The command layer asks it, per conflicted path,
-// whether a structural driver is enabled and — if so — to merge the parsed
-// structure instead of raw lines, so two logically independent edits to one
-// structured file compose cleanly instead of false-conflicting.
+// VARA-RFC-0025. It sits ABOVE the frozen engine (never touches pkg/diff or the
+// object/index formats): the command layer asks it, per conflicted path, whether
+// a structural driver is enabled and to merge parsed structure instead of raw
+// lines, so two logically independent edits to one structured file compose
+// cleanly instead of false-conflicting.
 //
-// Phase 1 supports JSON. Selection is opt-in per repository (RFC-0025 §4): the
-// driver engages only when config sets `merge.driver.<ext> = structured-json`;
-// otherwise callers use the existing line/diff3 merge unchanged. On any parse
-// failure the caller falls back to the line merge, so a malformed structured
-// file can never lose data or trip a parser bug.
+// A clean structural merge auto-resolves. A genuine same-key divergence is
+// rendered (for JSON) as a per-key conflict: the clean keys stay merged and only
+// the diverging value is wrapped in <<<<<<< / ||||||| / ======= / >>>>>>> markers,
+// so the conflict points at the exact key. YAML currently renders only the clean
+// case; a YAML conflict falls back to the line merge (RFC-0025 §12).
+//
+// Selection is opt-in per repo (RFC-0025 §4): a driver engages only when config
+// sets `merge.driver.<ext> = structured-json|structured-yaml`. On any parse
+// failure the caller falls back to the line merge, so a malformed structured file
+// can never lose data or trip a parser bug.
 package smartmerge
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -30,10 +37,30 @@ const (
 	driverYAML = "structured-yaml"
 )
 
+// Result is the outcome of a structural merge.
+type Result struct {
+	Merged    []byte // clean merged doc, or a per-key conflict-marker rendering
+	Conflicts int    // number of diverging locations (0 == clean)
+	ParseOK   bool   // false when a side failed to parse
+	Rendered  bool   // true when Merged holds a usable per-key marker rendering
+	//          for a conflicted merge; when false with Conflicts>0 the caller
+	//          falls back to the line merge (e.g. YAML has no renderer yet).
+}
+
+// absentT marks a side that lacks a key (a structural modify/delete).
+type absentT struct{}
+
+var absent = absentT{}
+
+// conflictMark is a sentinel placed in the merged tree where a value diverges.
+// Any of its sides may be `absent` (that side deleted the key).
+type conflictMark struct {
+	base, ours, theirs any
+}
+
 // SelectDriver returns the structural driver enabled for path, or "" for the
-// default line merge. Opt-in per repo (RFC-0025 §4): a structural driver engages
-// only when config sets a matching `merge.driver.<ext>` value; a nil config or
-// any other value keeps the line merge.
+// default line merge. Opt-in per repo: a structural driver engages only when
+// config sets a matching `merge.driver.<ext>` value.
 func SelectDriver(path string, cfg *config.Config) string {
 	if cfg == nil {
 		return ""
@@ -56,89 +83,59 @@ func SelectDriver(path string, cfg *config.Config) string {
 	return ""
 }
 
-// Merge runs the named structural driver, returning (merged, clean, parseOK) —
-// the same contract as the per-format functions. An unknown driver reports
-// parseOK=false so the caller falls back to the line merge.
-func Merge(driver string, base, ours, theirs []byte) (merged []byte, clean bool, parseOK bool) {
+// Merge runs the named structural driver.
+func Merge(driver string, base, ours, theirs []byte, ourLabel, theirLabel string) Result {
 	switch driver {
 	case driverJSON:
-		return MergeJSON(base, ours, theirs)
+		return MergeJSON(base, ours, theirs, ourLabel, theirLabel)
 	case driverYAML:
 		return MergeYAML(base, ours, theirs)
 	default:
-		return nil, false, false
+		return Result{}
 	}
 }
 
-// MergeJSON performs a three-way structural merge of JSON documents.
-//
-// Returns:
-//   - merged  : the canonical merged document (sorted keys, 2-space indent, one
-//     trailing newline) — valid only when clean is true.
-//   - clean   : true when the structural merge fully resolved (no divergent leaf).
-//   - parseOK : false when any side failed to parse as JSON.
-//
-// The caller falls back to the line merge whenever parseOK is false (unparseable)
-// or clean is false (a genuine same-key conflict Phase 1 leaves to the line
-// driver rather than rendering per-key markers — RFC-0025 §6, deferred).
-func MergeJSON(base, ours, theirs []byte) (merged []byte, clean bool, parseOK bool) {
+// MergeJSON performs a three-way structural merge of JSON documents. A clean
+// merge returns canonical JSON (sorted keys, 2-space indent); a conflict returns
+// a per-key marker rendering (Rendered=true).
+func MergeJSON(base, ours, theirs []byte, ourLabel, theirLabel string) Result {
 	var b, o, t any
-	if err := json.Unmarshal(base, &b); err != nil {
-		return nil, false, false
+	if json.Unmarshal(base, &b) != nil || json.Unmarshal(ours, &o) != nil || json.Unmarshal(theirs, &t) != nil {
+		return Result{} // ParseOK false → caller falls back to line merge
 	}
-	if err := json.Unmarshal(ours, &o); err != nil {
-		return nil, false, false
+	m, n := mergeTree(b, o, t)
+	if n == 0 {
+		out, err := json.MarshalIndent(m, "", "  ")
+		if err != nil {
+			return Result{} // unexpected; fall back
+		}
+		return Result{Merged: append(out, '\n'), Conflicts: 0, ParseOK: true}
 	}
-	if err := json.Unmarshal(theirs, &t); err != nil {
-		return nil, false, false
-	}
-
-	m, conflict := valueMerge(b, o, t)
-	if conflict {
-		return nil, false, true // parsed, but a leaf genuinely diverges
-	}
-	// json.Marshal sorts object keys, giving a canonical, order-independent form.
-	out, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return nil, false, false
-	}
-	return append(out, '\n'), true, true
+	return Result{Merged: renderJSON(m, ourLabel, theirLabel), Conflicts: n, ParseOK: true, Rendered: true}
 }
 
 // MergeYAML performs a three-way structural merge of YAML documents, reusing the
-// same tree merge as JSON. Output is canonical YAML (yaml.v3 sorts map keys), so
-// it is order-independent.
-//
-// NOTE: decoding into a plain tree drops comments, so a clean structural YAML
-// merge does not preserve them (RFC-0025 §12 — comment-preserving merge is
-// deferred). The caller falls back to the line merge on parse failure or a
-// genuine same-leaf conflict, so this only reformats a file it actually merges.
-func MergeYAML(base, ours, theirs []byte) (merged []byte, clean bool, parseOK bool) {
+// same tree merge. Only the clean case is rendered (canonical YAML — yaml.v3
+// sorts keys); a genuine conflict returns Rendered=false so the caller falls back
+// to the line merge. Comments are dropped by decoding (RFC-0025 §12).
+func MergeYAML(base, ours, theirs []byte) Result {
 	var b, o, t any
-	if err := yaml.Unmarshal(base, &b); err != nil {
-		return nil, false, false
+	if yaml.Unmarshal(base, &b) != nil || yaml.Unmarshal(ours, &o) != nil || yaml.Unmarshal(theirs, &t) != nil {
+		return Result{}
 	}
-	if err := yaml.Unmarshal(ours, &o); err != nil {
-		return nil, false, false
+	m, n := mergeTree(normalizeYAML(b), normalizeYAML(o), normalizeYAML(t))
+	if n == 0 {
+		out, err := yaml.Marshal(m)
+		if err != nil {
+			return Result{}
+		}
+		return Result{Merged: out, Conflicts: 0, ParseOK: true}
 	}
-	if err := yaml.Unmarshal(theirs, &t); err != nil {
-		return nil, false, false
-	}
-
-	m, conflict := valueMerge(normalizeYAML(b), normalizeYAML(o), normalizeYAML(t))
-	if conflict {
-		return nil, false, true
-	}
-	out, err := yaml.Marshal(m)
-	if err != nil {
-		return nil, false, false
-	}
-	return out, true, true
+	return Result{Conflicts: n, ParseOK: true} // Rendered false → line-merge fallback
 }
 
-// normalizeYAML converts any map[any]any (which some YAML shapes decode to) into
-// map[string]any recursively, so the shared tree merge sees the same value model
-// as JSON regardless of the decoder's map representation.
+// normalizeYAML converts any map[any]any into map[string]any recursively, so the
+// shared tree merge sees the same value model as JSON.
 func normalizeYAML(v any) any {
 	switch t := v.(type) {
 	case map[string]any:
@@ -162,34 +159,31 @@ func normalizeYAML(v any) any {
 	}
 }
 
-// valueMerge three-way merges two present values against their common base,
-// returning the merged value and whether a genuine conflict occurred.
-func valueMerge(base, ours, theirs any) (any, bool) {
+// mergeTree three-way merges two present values against their common base,
+// returning the merged tree (with conflictMark sentinels at diverging spots) and
+// the number of conflicts.
+func mergeTree(base, ours, theirs any) (any, int) {
 	switch {
-	case eq(ours, theirs): // both sides agree (incl. both made the same change)
-		return ours, false
+	case eq(ours, theirs): // both agree (incl. both made the same change)
+		return ours, 0
 	case eq(base, ours): // only theirs changed
-		return theirs, false
+		return theirs, 0
 	case eq(base, theirs): // only ours changed
-		return ours, false
+		return ours, 0
 	}
-
-	// Both changed differently. If both are objects, merge key by key; only the
-	// keys that truly diverge conflict. Anything else (scalars, arrays, a type
-	// change) is an atomic conflict in Phase 1.
 	om, ook := ours.(map[string]any)
 	tm, tok := theirs.(map[string]any)
 	if ook && tok {
-		bm, _ := base.(map[string]any) // nil if base wasn't an object; treated as empty
+		bm, _ := base.(map[string]any) // nil if base wasn't an object → treated as empty
 		return objectMerge(bm, om, tm)
 	}
-	return ours, true
+	// Scalars, arrays, or a type change that both sides altered → atomic conflict.
+	return conflictMark{base: base, ours: ours, theirs: theirs}, 1
 }
 
-// objectMerge merges three JSON objects key by key.
-func objectMerge(base, ours, theirs map[string]any) (any, bool) {
+func objectMerge(base, ours, theirs map[string]any) (any, int) {
 	out := map[string]any{}
-	conflict := false
+	total := 0
 
 	seen := map[string]bool{}
 	for _, m := range []map[string]any{base, ours, theirs} {
@@ -197,47 +191,154 @@ func objectMerge(base, ours, theirs map[string]any) (any, bool) {
 			seen[k] = true
 		}
 	}
-
 	for k := range seen {
 		bv, bh := base[k]
 		ov, oh := ours[k]
 		tv, th := theirs[k]
 		present, val, c := keyMerge(bh, bv, oh, ov, th, tv)
-		if c {
-			conflict = true
-		}
+		total += c
 		if present {
 			out[k] = val
 		}
 	}
-	return out, conflict
+	return out, total
 }
 
-// keyMerge resolves one key across base/ours/theirs, where the *h booleans mark
-// whether the key is present on that side. It returns whether the key survives,
-// its merged value, and whether it conflicts.
-func keyMerge(bh bool, bv any, oh bool, ov any, th bool, tv any) (present bool, val any, conflict bool) {
+func keyMerge(bh bool, bv any, oh bool, ov any, th bool, tv any) (present bool, val any, conflicts int) {
 	switch {
-	case oh == th && (!oh || eq(ov, tv)): // ours == theirs (present-and-equal, or both absent)
-		return oh, ov, false
-	case bh == oh && (!bh || eq(bv, ov)): // ours == base → take theirs' decision
-		return th, tv, false
-	case bh == th && (!bh || eq(bv, tv)): // theirs == base → take ours' decision
-		return oh, ov, false
-	case oh && th: // both present and changed differently → recurse
+	case oh == th && (!oh || eq(ov, tv)): // ours == theirs
+		return oh, ov, 0
+	case bh == oh && (!bh || eq(bv, ov)): // ours == base → take theirs
+		return th, tv, 0
+	case bh == th && (!bh || eq(bv, tv)): // theirs == base → take ours
+		return oh, ov, 0
+	case oh && th: // both present, changed differently → recurse
 		var baseVal any
 		if bh {
 			baseVal = bv
 		}
-		m, c := valueMerge(baseVal, ov, tv)
+		m, c := mergeTree(baseVal, ov, tv)
 		return true, m, c
-	default: // one side modified, the other deleted → structural modify/delete conflict
-		if oh {
-			return true, ov, true
-		}
-		return th, tv, true
+	default: // one side modified, the other deleted → structural modify/delete
+		return true, conflictMark{
+			base:   sideOrAbsent(bh, bv),
+			ours:   sideOrAbsent(oh, ov),
+			theirs: sideOrAbsent(th, tv),
+		}, 1
 	}
 }
 
-// eq is deep structural equality over decoded JSON values.
+func sideOrAbsent(has bool, v any) any {
+	if has {
+		return v
+	}
+	return absent
+}
+
+// --- per-key JSON conflict renderer ----------------------------------------
+
+func renderJSON(v any, ourLabel, theirLabel string) []byte {
+	var b bytes.Buffer
+	writeNode(&b, v, "", ourLabel, theirLabel)
+	b.WriteByte('\n')
+	return b.Bytes()
+}
+
+// writeNode emits a JSON value. conflictMark nodes become marker blocks; clean
+// keys/elements are serialized canonically. Marker lines sit at column 0 (git
+// convention); the result is intentionally not valid JSON while conflicted.
+func writeNode(b *bytes.Buffer, v any, indent, ourLabel, theirLabel string) {
+	switch t := v.(type) {
+	case conflictMark:
+		writeConflict(b, t, indent, ourLabel, theirLabel)
+	case map[string]any:
+		if len(t) == 0 {
+			b.WriteString("{}")
+			return
+		}
+		keys := sortedKeys(t)
+		b.WriteString("{\n")
+		child := indent + "  "
+		for i, k := range keys {
+			kb, _ := json.Marshal(k)
+			last := i == len(keys)-1
+			if cm, ok := t[k].(conflictMark); ok {
+				b.WriteString(child)
+				b.Write(kb)
+				b.WriteString(":\n")
+				writeConflict(b, cm, child, ourLabel, theirLabel) // ends with '\n'
+			} else {
+				b.WriteString(child)
+				b.Write(kb)
+				b.WriteString(": ")
+				writeNode(b, t[k], child, ourLabel, theirLabel)
+				if !last {
+					b.WriteString(",")
+				}
+				b.WriteString("\n")
+			}
+		}
+		b.WriteString(indent + "}")
+	case []any:
+		if len(t) == 0 {
+			b.WriteString("[]")
+			return
+		}
+		b.WriteString("[\n")
+		child := indent + "  "
+		for i, el := range t {
+			last := i == len(t)-1
+			if cm, ok := el.(conflictMark); ok {
+				writeConflict(b, cm, child, ourLabel, theirLabel)
+			} else {
+				b.WriteString(child)
+				writeNode(b, el, child, ourLabel, theirLabel)
+				if !last {
+					b.WriteString(",")
+				}
+				b.WriteString("\n")
+			}
+		}
+		b.WriteString(indent + "]")
+	default:
+		sb, _ := json.Marshal(t)
+		b.Write(sb)
+	}
+}
+
+func writeConflict(b *bytes.Buffer, cm conflictMark, indent, ourLabel, theirLabel string) {
+	b.WriteString("<<<<<<< " + ourLabel + "\n")
+	writeSide(b, cm.ours, indent)
+	b.WriteString("||||||| base\n")
+	writeSide(b, cm.base, indent)
+	b.WriteString("=======\n")
+	writeSide(b, cm.theirs, indent)
+	b.WriteString(">>>>>>> " + theirLabel + "\n")
+}
+
+// writeSide renders one side of a conflict, or nothing when that side is absent
+// (a deletion), at the given indent.
+func writeSide(b *bytes.Buffer, v any, indent string) {
+	if _, isAbsent := v.(absentT); isAbsent {
+		return
+	}
+	sb, err := json.MarshalIndent(v, indent, "  ")
+	if err != nil {
+		return
+	}
+	b.WriteString(indent)
+	b.Write(sb)
+	b.WriteByte('\n')
+}
+
+func sortedKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// eq is deep structural equality over decoded values.
 func eq(a, b any) bool { return reflect.DeepEqual(a, b) }

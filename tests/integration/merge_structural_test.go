@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/thulasiramk-2310/vara/internal/commands"
+	"github.com/thulasiramk-2310/vara/internal/conflict"
 	"github.com/thulasiramk-2310/vara/pkg/config"
 	"github.com/thulasiramk-2310/vara/pkg/recovery"
 )
@@ -120,6 +121,68 @@ func TestStructuralMergeAutoResolvesYAML(t *testing.T) {
 	}
 	if !strings.Contains(got, "a: 10") || !strings.Contains(got, "b: 20") {
 		t.Fatalf("expected combined a:10 / b:20, got:\n%s", got)
+	}
+}
+
+// TestStructuralPerKeyConflictMarkers: when only one key truly diverges, the
+// merge keeps the clean keys merged and wraps just that key in conflict markers
+// (pointing at it), still gating commit until resolved.
+func TestStructuralPerKeyConflictMarkers(t *testing.T) {
+	ctx, dir := setupRepo(t)
+	writeFile(t, dir, "config.json", `{"a":1,"b":2}`+"\n")
+	makeCommit(t, ctx, "base")
+
+	if _, err := commands.RunBranch(ctx, "feature"); err != nil {
+		t.Fatalf("branch: %v", err)
+	}
+	if _, err := commands.RunSwitch(ctx, "feature"); err != nil {
+		t.Fatalf("switch: %v", err)
+	}
+	writeFile(t, dir, "config.json", `{"a":1,"b":8}`+"\n") // feature: only b
+	makeCommit(t, ctx, "feature edits b")
+
+	if _, err := commands.RunSwitch(ctx, "main"); err != nil {
+		t.Fatalf("switch main: %v", err)
+	}
+	writeFile(t, dir, "config.json", `{"a":10,"b":9}`+"\n") // main: a (clean) and b (clash)
+	makeCommit(t, ctx, "main edits a and b")
+
+	cfg := config.New()
+	cfg.Set("merge", "", "driver.json", "structured-json")
+	if err := cfg.Save(filepath.Join(ctx.Repository.VaraDir, "config")); err != nil {
+		t.Fatalf("config: %v", err)
+	}
+
+	out, err := commands.RunMerge(ctx, "feature")
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if !strings.Contains(out, "Automatic merge failed") {
+		t.Fatalf("a genuine key clash must still conflict, got: %q", out)
+	}
+	got := readFile(dir, "config.json")
+	if !strings.Contains(got, `"a": 10`) {
+		t.Fatalf("clean key 'a' should be merged in place:\n%s", got)
+	}
+	if !strings.Contains(got, "<<<<<<<") || !strings.Contains(got, `"b":`) {
+		t.Fatalf("diverging key 'b' should carry per-key markers:\n%s", got)
+	}
+
+	// Commit is gated until resolved; --theirs then completes the merge.
+	ctx = reloadCtx(t, ctx)
+	if _, err := commands.RunCommit(ctx, "premature"); err == nil {
+		t.Fatal("commit must be refused while the key is unresolved")
+	}
+	ctx = reloadCtx(t, ctx)
+	if _, err := commands.RunResolve(ctx, commands.ResolveArgs{Strategy: conflict.Theirs}); err != nil {
+		t.Fatalf("resolve --theirs: %v", err)
+	}
+	if strings.Contains(readFile(dir, "config.json"), "<<<<<<<") {
+		t.Fatal("resolve --theirs must clear the markers")
+	}
+	ctx = reloadCtx(t, ctx)
+	if _, err := commands.RunCommit(ctx, "merge feature"); err != nil {
+		t.Fatalf("commit after resolve: %v", err)
 	}
 }
 
