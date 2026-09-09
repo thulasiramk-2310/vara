@@ -1,0 +1,243 @@
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Thin, elegant scrollbars everywhere (Linear/Vercel/Raycast style) — replaces the
+   chunky native OS bars. Track is invisible; the thumb is a soft rounded pill that
+   darkens on hover. Applies to the page and to inner scroll areas (file trees,
+   diffs, code, the contribution graph on narrow widths). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Font tokens. No CDN: 'Sora' is used only if the platform already has it,
+   otherwise the self-contained system stack takes over — the Hub ships as a
+   single static binary with no external font fetch. --font-mono backs all code,
+   diffs, and object hashes. */
+:root {
+  --font-sans: 'Sora', -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Menlo, Consolas, "Segoe UI Mono", monospace;
+}
+
+body {
+  background: var(--page);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Responsive split layouts: a fluid main column beside a fixed rail/sidebar.
+   `min-width: 0` on the children lets inner overflow-x containers (e.g. the
+   contribution heatmap) engage instead of forcing the page wide; below the
+   breakpoint the layout stacks so the fixed track never overflows. */
+.v-dash {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 28px;
+  align-items: start;
+}
+.v-profile {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+.v-dash > *,
+.v-profile > * {
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .v-dash,
+  .v-profile {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@keyframes v-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.v-spin {
+  animation: v-spin 0.8s linear infinite;
+}
+
+[data-theme="light"] {
+  --page: #cfe7d7;
+  --bg: #f7f2ec;
+  --panel: #ffffff;
+  --panel-2: #f3ede4;
+  --inset: #f3ede4;
+  --hover: #efe8de;
+  --border: #ece2d5;
+  --border-strong: #ddd0bf;
+  --text: #241f1a;
+  --dim: #857a6d;
+  --faint: #b3a898;
+  --accent: #0d9488;
+  --accent-strong: #0f766e;
+  --accent-fg: #ffffff;
+  --accent-soft: #d6f0ec;
+  --green: #1a7f37;
+  --green-soft: #e7f4ea;
+  --purple: #2f6feb;
+  --purple-soft: #e6eefc;
+  --red: #cf3b3b;
+  --red-soft: #fbe9e9;
+  --brand-red: #c0453a; /* VARA HUB accent — the commit node + "HUB" wordmark only */
+  --scroll-thumb: rgba(0, 0, 0, 0.16);
+  --scroll-thumb-hover: rgba(0, 0, 0, 0.30);
+  --add: #1a7f37;
+  --add-bg: #e6f4ea;
+  --add-gutter: #c8e6cf;
+  --del: #cf222e;
+  --del-bg: #ffebe9;
+  --del-gutter: #ffd0cc;
+  --warn: #9a6700;
+  --warn-soft: #fff3d6;
+  --mark-bg: #ffe9a3;
+  --mark-fg: #5c4a00;
+  --chip: #f3ede4;
+  --chip-border: #e6ddce;
+  --shadow: 0 1px 2px rgba(70,55,40,.05);
+  --shadow-md: 0 6px 16px -8px rgba(70,55,40,.18);
+  --shadow-lg: 0 24px 60px -30px rgba(70,55,40,.35);
+  --heat0: #e4dbcc; /* visible empty cell on the light card */
+  --heat1: #bfe3c6;
+  --heat2: #8ccf97;
+  --heat3: #57a768;
+  --heat4: #2f7d43;
+  --pink-bg: #f4d1cd;
+  --pink-ink: #8a4f4a;
+  --pink-sub: #a06b66;
+  --yellow-bg: #f6e5a6;
+  --yellow-ink: #7d6a2b;
+  --yellow-sub: #95824a;
+  --lilac-bg: #cdece7;
+  --lilac-ink: #2f6a62;
+  --lilac-sub: #4f8b82;
+  --mint-bg: #c6e7d1;
+  --mint-ink: #3f6a51;
+  --mint-sub: #5c8672;
+  --peach-bg: #f7dcc0;
+  --peach-ink: #8a5e33;
+  --peach-sub: #a17c54;
+}
+
+[data-theme="dark"] {
+  --page: #141917;
+  --bg: #17130f;
+  --panel: #221c16;
+  --panel-2: #1c1610;
+  --inset: #1c1610;
+  --hover: #271f17;
+  --border: #342a21;
+  --border-strong: #453729;
+  --text: #f2ebe1;
+  --dim: #a89e91;
+  --faint: #6f665b;
+  --accent: #2dd4bf;
+  --accent-strong: #14b8a6;
+  --accent-fg: #17130f;
+  --accent-soft: #12332f;
+  --green: #4ac26b;
+  --green-soft: #173021;
+  --purple: #6ea8ff;
+  --purple-soft: #16233f;
+  --red: #f0655f;
+  --red-soft: #2e1917;
+  --brand-red: #e5675a; /* VARA HUB accent — the commit node + "HUB" wordmark only */
+  --scroll-thumb: rgba(255, 255, 255, 0.14);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.28);
+  --add: #4ac26b;
+  --add-bg: rgba(74,194,107,.13);
+  --add-gutter: rgba(74,194,107,.22);
+  --del: #f76d68;
+  --del-bg: rgba(247,109,104,.13);
+  --del-gutter: rgba(247,109,104,.22);
+  --warn: #d9a441;
+  --warn-soft: rgba(217,164,65,.14);
+  --mark-bg: rgba(214,168,58,.32);
+  --mark-fg: #f3d99a;
+  --chip: #241d16;
+  --chip-border: #372c22;
+  --shadow: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 6px 16px -8px rgba(0,0,0,.6);
+  --shadow-lg: 0 24px 60px -30px rgba(0,0,0,.75);
+  --heat0: #332c23; /* visible empty cell on the dark card (Option 1, muted) */
+  --heat1: #3a7a47;
+  --heat2: #4e9c5a;
+  --heat3: #67c16e;
+  --heat4: #8be38e;
+  --pink-bg: #54332f;
+  --pink-ink: #f0c3bd;
+  --pink-sub: #c99189;
+  --yellow-bg: #4d4322;
+  --yellow-ink: #efdca0;
+  --yellow-sub: #c4b075;
+  --lilac-bg: #1c3a35;
+  --lilac-ink: #b7e6dd;
+  --lilac-sub: #83b8ae;
+  --mint-bg: #274235;
+  --mint-ink: #bfe6cd;
+  --mint-sub: #84b499;
+  --peach-bg: #4d3720;
+  --peach-ink: #f2cea5;
+  --peach-sub: #c69a6b;
+}
+
+mark {
+  background: var(--mark-bg);
+  color: var(--mark-fg);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+input, textarea, button {
+  font-family: inherit;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--faint);
+}
+
+@keyframes v-fade {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes v-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: .001ms !important;
+    transition-duration: .001ms !important;
+  }
+}

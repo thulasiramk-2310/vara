@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build output (the Hub is served from a freshly built dist/, not from git)
+dist/
+
+# Vite / tooling caches
+.vite/
+*.tsbuildinfo
+
+# Local env & editor
+*.local
+.env
+.env.*
+.DS_Store
+Thumbs.db
