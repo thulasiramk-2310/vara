@@ -36,7 +36,9 @@ VARA is built around a protocol-first architecture: SHA-256 object identity, zst
 | **Write-ahead journal** | Six-phase transaction lifecycle. Crash at any point leaves the repository consistent. |
 | **Hierarchical locking** | O_EXCL file locks acquired in fixed order. Deadlock-free by construction (RFC-0006). |
 | **Repository verification** | Seven-phase integrity report: objects → trees → commits → DAG → refs → index → journal. |
-| **Three-way merge** | Myers O(ND) diff, diff3 line-level merge, conflict markers for unresolvable regions. |
+| **Three-way merge** | Myers O(ND) diff, order-independent base-aware line merge, **zdiff3** conflict markers. |
+| **Conflict lifecycle** | `resolve` (ours/theirs/union/auto), `rm`, `merge --abort`/`--continue`, conflict-aware `status` & `diff`. Content-bearing sidecar; commit gated until resolved. |
+| **Structural merge** | Opt-in per-type merge of **JSON / YAML / TOML** — independent-key edits auto-combine instead of false-conflicting (RFC-0025). |
 | **Three-layer undo** | Journal rollback → reflog restore → snapshot archive. Always a path to recovery. |
 | **Commit Graph Index** | Binary `graph.idx` (RFC-0013). History on 10k commits: **16 ms** (was 75.8 s). |
 | **Fuzz-tested parsers** | Ref names, journal entries, commit objects, tree blobs, and binary inputs. |
@@ -167,6 +169,26 @@ vara verify           # full integrity check
 vara undo             # three-layer recovery: journal → reflog → snapshot
 ```
 
+**Resolving a conflicted merge:**
+
+```sh
+vara merge feature       # conflicts are written with zdiff3 markers
+vara status              # shows unmerged / resolved paths
+vara diff                # ours-vs-theirs for the unmerged files
+vara resolve --theirs    # or --ours / --union / --auto (or edit by hand)
+vara rm <path>           # resolve a modify/delete by removing the file
+vara merge --continue    # seal the two-parent merge commit
+vara merge --abort       # or back out entirely (guards unrelated edits)
+```
+
+Opt into **structural merge** for a type so independent edits to one file stop
+false-conflicting (JSON/YAML/TOML) — set it in `.vara/config`:
+
+```ini
+[merge]
+  driver.json = structured-json
+```
+
 **Working with remotes** (RFC-0014, local transport):
 
 ```sh
@@ -251,6 +273,8 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 | Local repository engine | ✅ Complete |
 | Transactional storage with crash recovery | ✅ Complete |
 | Three-way merge and conflict detection | ✅ Complete |
+| Conflict resolution lifecycle (`resolve`/`rm`/`merge --abort`/`--continue`, zdiff3) | ✅ Complete |
+| Structural merge for JSON / YAML / TOML (opt-in, RFC-0025) | ✅ Complete |
 | Commit Graph Index (RFC-0013) | ✅ Complete |
 | Repository verification (`vara verify`) | ✅ Complete |
 | Three-layer undo (`vara undo`) | ✅ Complete |
