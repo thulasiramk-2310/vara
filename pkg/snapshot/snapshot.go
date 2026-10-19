@@ -48,11 +48,18 @@ func Create(varaDir, rootDir, commandName, commitHex string) (string, error) {
 		shortCommit = shortCommit[:7]
 	}
 
+	// Names have one-second resolution; a second snapshot of the same command in
+	// the same second gets ".2", ".3", ... instead of overwriting the first.
 	timestamp := time.Now().Format("20060102-150405")
-	filename := fmt.Sprintf("snap-%s-%s-%s.tar.zst", timestamp, commandName, shortCommit)
+	base := fmt.Sprintf("snap-%s-%s-%s", timestamp, commandName, shortCommit)
+	filename := base + ".tar.zst"
 	snapPath := filepath.Join(snapshotsDir, filename)
-
-	f, err := os.Create(snapPath)
+	f, err := os.OpenFile(snapPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	for n := 2; err != nil && os.IsExist(err) && n < 1000; n++ {
+		filename = fmt.Sprintf("%s.%d.tar.zst", base, n)
+		snapPath = filepath.Join(snapshotsDir, filename)
+		f, err = os.OpenFile(snapPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	}
 	if err != nil {
 		return "", fmt.Errorf("snapshot: create archive file: %w", err)
 	}
