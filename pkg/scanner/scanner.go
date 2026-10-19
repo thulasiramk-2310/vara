@@ -74,24 +74,18 @@ func (s *Scanner) Scan(wt Worktree) (*Result, error) {
 		if !exists {
 			res.Files[relPath] = StatusUntracked
 		} else {
-			fingerprint := uint64(info.ModTime().UnixNano())
-
-			if fingerprint != idxEntry.Fingerprint {
-				// ModTime differs — file is definitely changed.
-				res.Files[relPath] = StatusModified
+			// The content hash decides. A matching ModTime is not proof of an
+			// unchanged file (two writes in one timestamp tick), and a different
+			// ModTime is not proof of a change: merge and undo rewrite files with
+			// the same content, and so does a plain touch.
+			h, err := hashFile(wt, relPath)
+			if err != nil {
+				return err
+			}
+			if h == idxEntry.ObjectID {
+				res.Files[relPath] = StatusClean
 			} else {
-				// ModTime matches — verify content hash to guard against
-				// sub-resolution writes (two writes within the same filesystem
-				// timestamp tick get the same ModTime).
-				h, err := hashFile(wt, relPath)
-				if err != nil {
-					return err
-				}
-				if h == idxEntry.ObjectID {
-					res.Files[relPath] = StatusClean
-				} else {
-					res.Files[relPath] = StatusModified
-				}
+				res.Files[relPath] = StatusModified
 			}
 			// Mark as processed
 			delete(indexMap, relPath)
