@@ -151,7 +151,9 @@ async function guard(loader) {
   try {
     await loader();
   } catch (e) {
-    if (e.status === 401) {
+    // A visitor who is not signed in gets 403, not 401: anonymous is an
+    // ordinary subject that simply lacks the capability. Sign-in is the way on.
+    if (e.status === 401 || (e.status === 403 && (!me || me.anonymous))) {
       toast("Please log in", true);
       location.hash = "#/login";
     } else if (e.status === 403) {
