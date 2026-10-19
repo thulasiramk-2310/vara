@@ -77,7 +77,7 @@ func Undo(in Inputs) (Result, error) {
 		return undoSnapshot(in, snaps[0])
 	}
 
-	return Result{}, fmt.Errorf("undo: nothing to undo (no pending transactions, reflog, or snapshots)")
+	return Result{}, fmt.Errorf("nothing to undo (no pending transactions, reflog, or snapshots)")
 }
 
 // undoJournal marks a stuck transaction as FAILED so the repository is no
@@ -88,11 +88,11 @@ func undoJournal(in Inputs, txn recovery.PendingTransaction) (Result, error) {
 	// released when the process died, so no locks need clearing here.
 	data, err := os.ReadFile(txn.Path)
 	if err != nil {
-		return Result{}, fmt.Errorf("undo: read journal: %w", err)
+		return Result{}, fmt.Errorf("read journal: %w", err)
 	}
 	updated := strings.ReplaceAll(string(data), `"`+string(txn.State)+`"`, `"FAILED"`)
 	if err := os.WriteFile(txn.Path, []byte(updated), 0644); err != nil {
-		return Result{}, fmt.Errorf("undo: update journal: %w", err)
+		return Result{}, fmt.Errorf("update journal: %w", err)
 	}
 	return Result{
 		Layer:   1,
@@ -105,7 +105,7 @@ func undoJournal(in Inputs, txn recovery.PendingTransaction) (Result, error) {
 func undoReflog(in Inputs, prevID types.CommitID) (Result, error) {
 	txn, err := transaction.Begin(in.VaraDir, "undo", locking.NameRefs, locking.NameIndex)
 	if err != nil {
-		return Result{}, fmt.Errorf("undo: %w", err)
+		return Result{}, fmt.Errorf("%w", err)
 	}
 	defer txn.Rollback()
 
@@ -116,27 +116,28 @@ func undoReflog(in Inputs, prevID types.CommitID) (Result, error) {
 	if symErr == nil {
 		// Update the branch pointer.
 		if err := resolver.Update(currentRef, prevID); err != nil {
-			return Result{}, fmt.Errorf("undo: update ref: %w", err)
+			return Result{}, fmt.Errorf("update ref: %w", err)
 		}
 	} else {
 		// Detached HEAD — update HEAD directly.
 		headPath := filepath.Join(in.VaraDir, "HEAD")
 		if err := atomicWrite(headPath, prevID.String()+"\n"); err != nil {
-			return Result{}, fmt.Errorf("undo: update HEAD: %w", err)
+			return Result{}, fmt.Errorf("update HEAD: %w", err)
 		}
 	}
 
-	// Checkout the previous commit's tree.
+	// Checkout the previous commit's tree into a fresh index.
+	in.Index.Entries = nil
 	obj, err := in.Store.Read(types.ObjectID(prevID))
 	if err != nil {
-		return Result{}, fmt.Errorf("undo: read previous commit: %w", err)
+		return Result{}, fmt.Errorf("read previous commit: %w", err)
 	}
 	prevCommit, ok := obj.(*object.Commit)
 	if !ok {
-		return Result{}, fmt.Errorf("undo: previous HEAD is not a commit")
+		return Result{}, fmt.Errorf("previous HEAD is not a commit")
 	}
 	if err := checkoutTree(in.Store, prevCommit.TreeHash, in.RootDir, in.Index); err != nil {
-		return Result{}, fmt.Errorf("undo: checkout: %w", err)
+		return Result{}, fmt.Errorf("checkout: %w", err)
 	}
 
 	// Persist index.
@@ -166,13 +167,13 @@ func undoSnapshot(in Inputs, snapName string) (Result, error) {
 
 	f, err := os.Open(snapPath)
 	if err != nil {
-		return Result{}, fmt.Errorf("undo: open snapshot: %w", err)
+		return Result{}, fmt.Errorf("open snapshot: %w", err)
 	}
 	defer f.Close()
 
 	dec, err := zstd.NewReader(f)
 	if err != nil {
-		return Result{}, fmt.Errorf("undo: zstd decoder: %w", err)
+		return Result{}, fmt.Errorf("zstd decoder: %w", err)
 	}
 	defer dec.Close()
 
@@ -183,7 +184,7 @@ func undoSnapshot(in Inputs, snapName string) (Result, error) {
 			break
 		}
 		if err != nil {
-			return Result{}, fmt.Errorf("undo: read tar: %w", err)
+			return Result{}, fmt.Errorf("read tar: %w", err)
 		}
 
 		absPath := filepath.Join(in.RootDir, filepath.FromSlash(hdr.Name))
@@ -192,12 +193,12 @@ func undoSnapshot(in Inputs, snapName string) (Result, error) {
 		}
 		out, err := os.Create(absPath)
 		if err != nil {
-			return Result{}, fmt.Errorf("undo: create %s: %w", hdr.Name, err)
+			return Result{}, fmt.Errorf("create %s: %w", hdr.Name, err)
 		}
 		_, copyErr := io.Copy(out, tr)
 		out.Close()
 		if copyErr != nil {
-			return Result{}, fmt.Errorf("undo: extract %s: %w", hdr.Name, copyErr)
+			return Result{}, fmt.Errorf("extract %s: %w", hdr.Name, copyErr)
 		}
 	}
 
@@ -219,7 +220,7 @@ func checkoutTreeEntries(store *object.Store, objID types.ObjectID, rootDir, pre
 	}
 	tree, ok := obj.(*object.Tree)
 	if !ok {
-		return fmt.Errorf("undo: %s is not a tree", objID.String()[:7])
+		return fmt.Errorf("%s is not a tree", objID.String()[:7])
 	}
 	for _, entry := range tree.Entries {
 		relPath := prefix + entry.Name
@@ -237,7 +238,7 @@ func checkoutTreeEntries(store *object.Store, objID types.ObjectID, rootDir, pre
 		}
 		blob, ok := blobObj.(*object.Blob)
 		if !ok {
-			return fmt.Errorf("undo: %s is not a blob", entry.Hash.String()[:7])
+			return fmt.Errorf("%s is not a blob", entry.Hash.String()[:7])
 		}
 		os.MkdirAll(filepath.Dir(absPath), 0755)
 		if err := os.WriteFile(absPath, blob.Data, 0644); err != nil {

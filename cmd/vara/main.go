@@ -205,8 +205,13 @@ func main() {
 		fmt.Print(out)
 
 	case "undo":
+		force := len(rest) == 1 && rest[0] == "--force"
+		if len(rest) > 0 && !force {
+			fmt.Fprintln(os.Stderr, "usage: vara undo [--force]")
+			os.Exit(1)
+		}
 		ctx := mustCtx(true)
-		out, err := commands.RunUndo(ctx)
+		out, err := commands.RunUndo(ctx, force)
 		if err != nil {
 			die("undo: %v", err)
 		}
@@ -806,7 +811,7 @@ merge. A commit is refused while any conflict remains unresolved.
   vara resolve --theirs
   vara resolve --union config/hosts
 `,
-	"undo": `usage: vara undo
+	"undo": `usage: vara undo [--force]
 
 Revert to the last known good state using three-layer recovery (RFC-0009):
 
@@ -815,6 +820,10 @@ Revert to the last known good state using three-layer recovery (RFC-0009):
   3. Snapshot restore   — pre-operation working-tree archive
 
 Tries each layer in order; stops at the first one that succeeds.
+
+Undo refuses while tracked files have uncommitted changes, because it would
+overwrite them. --force undoes anyway. Either way the working tree is saved
+in a snapshot under .vara/snapshots first.
 `,
 	"verify": `usage: vara verify
 
