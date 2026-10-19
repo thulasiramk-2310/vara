@@ -1,8 +1,10 @@
 package commands
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -23,13 +25,16 @@ import (
 // It is selected (over the HTTP `vara account` client) by the presence of the
 // --accounts flag, which names the same credential-store directory as
 // `vara serve --accounts`.
+//
+// --password-stdin reads the password from the first line of standard input
+// instead, so it never appears in the process list.
 func RunAccountBootstrap(args []string) error {
 	if len(args) == 0 || args[0] != "create" {
 		return fmt.Errorf("on-host bootstrap supports only:\n" +
-			"  vara account create --accounts <dir> --username <name> --password <pw> [--policy <dir>] [--force]")
+			"  vara account create --accounts <dir> --username <name> (--password <pw> | --password-stdin) [--policy <dir>] [--force]")
 	}
 	var accountsDir, policyDir, username, password string
-	var force bool
+	var force, fromStdin bool
 	rest := args[1:]
 	for i := 0; i < len(rest); i++ {
 		switch rest[i] {
@@ -41,12 +46,23 @@ func RunAccountBootstrap(args []string) error {
 			username, i = nextArg(rest, i)
 		case "--password":
 			password, i = nextArg(rest, i)
+		case "--password-stdin":
+			fromStdin = true
 		case "--force":
 			force = true
 		}
 	}
+	if fromStdin {
+		if password != "" {
+			return fmt.Errorf("use either --password or --password-stdin, not both")
+		}
+		var err error
+		if password, err = readPasswordLine(bootstrapStdin); err != nil {
+			return err
+		}
+	}
 	if accountsDir == "" || username == "" || password == "" {
-		return fmt.Errorf("bootstrap requires --accounts <dir>, --username <name>, and --password <pw>")
+		return fmt.Errorf("bootstrap requires --accounts <dir>, --username <name>, and --password <pw> or --password-stdin")
 	}
 	absAccounts, err := filepath.Abs(accountsDir)
 	if err != nil {
@@ -159,4 +175,16 @@ func toCapabilities(ss []string) []authz.Capability {
 		out[i] = authz.Capability(s)
 	}
 	return out
+}
+
+// bootstrapStdin is where --password-stdin reads from; tests replace it.
+var bootstrapStdin io.Reader = os.Stdin
+
+// readPasswordLine returns the first line of r without its line ending.
+func readPasswordLine(r io.Reader) (string, error) {
+	line, err := bufio.NewReader(r).ReadString('\n')
+	if err != nil && err != io.EOF {
+		return "", fmt.Errorf("read password from stdin: %w", err)
+	}
+	return strings.TrimRight(line, "\r\n"), nil
 }

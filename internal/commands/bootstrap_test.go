@@ -80,3 +80,34 @@ func TestBootstrapRequiresFlags(t *testing.T) {
 		t.Fatal("on-host bootstrap should only support 'create'")
 	}
 }
+
+func TestBootstrapReadsPasswordFromStdin(t *testing.T) {
+	acct, pol := t.TempDir(), t.TempDir()
+	bootstrapStdin = strings.NewReader("from-stdin-pass\n")
+	defer func() { bootstrapStdin = os.Stdin }()
+	args := []string{"create", "--accounts", acct, "--policy", pol, "--username", "admin", "--password-stdin"}
+	if err := RunAccountBootstrap(args); err != nil {
+		t.Fatal(err)
+	}
+	if !accountsExist(acct) {
+		t.Fatal("no account was created")
+	}
+}
+
+func TestBootstrapRejectsBothPasswordSources(t *testing.T) {
+	bootstrapStdin = strings.NewReader("x\n")
+	defer func() { bootstrapStdin = os.Stdin }()
+	args := []string{"create", "--accounts", t.TempDir(), "--username", "admin", "--password", "p", "--password-stdin"}
+	if err := RunAccountBootstrap(args); err == nil {
+		t.Fatal("both --password and --password-stdin should error")
+	}
+}
+
+func TestBootstrapRejectsEmptyStdinPassword(t *testing.T) {
+	bootstrapStdin = strings.NewReader("")
+	defer func() { bootstrapStdin = os.Stdin }()
+	args := []string{"create", "--accounts", t.TempDir(), "--username", "admin", "--password-stdin"}
+	if err := RunAccountBootstrap(args); err == nil {
+		t.Fatal("an empty stdin password should error")
+	}
+}

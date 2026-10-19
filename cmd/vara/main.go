@@ -1029,7 +1029,8 @@ is long-lived until revoked; its secret is shown once at creation.
 `,
 	"account": `usage: vara account <create|disable|delete|passwd> <server-url> <username>
                     [--password <pw>] [--basic u:s | --bearer t]
-   or: vara account create --accounts <dir> --username <name> --password <pw>
+   or: vara account create --accounts <dir> --username <name>
+                    (--password <pw> | --password-stdin)
                     [--policy <dir>] [--force]        (on-host bootstrap)
 
 Manage accounts (RFC-0020). Over HTTP, create/disable/delete need the
