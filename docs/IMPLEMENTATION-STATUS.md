@@ -79,8 +79,7 @@ Measured on AMD Ryzen 9 8945HS, 10 000-commit repository:
 
 ## Known Limitations
 
-- Author identity is hardcoded as `User <user@example.com>` (RFC-0010 not implemented)
-- No remote protocol (RFC-0014 deferred)
+- `vara undo` returns to the previous HEAD only once: a second undo does not go further back, and snapshots have no restore command yet (RFC-0009 §5 `vara snapshot`)
 - No rename detection in merge
 - No pack-file compaction (objects grow unboundedly)
 - No `vara stash` command
