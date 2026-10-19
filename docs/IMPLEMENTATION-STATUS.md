@@ -79,7 +79,7 @@ Measured on AMD Ryzen 9 8945HS, 10 000-commit repository:
 
 ## Known Limitations
 
-- `vara undo` returns to the previous HEAD only once: a second undo does not go further back, and snapshots have no restore command yet (RFC-0009 §5 `vara snapshot`)
+- `vara undo` returns to the previous HEAD only once: a second undo does not go further back (`vara snapshot restore` brings back a saved working tree)
 - No rename detection in merge
 - No pack-file compaction (objects grow unboundedly)
 - No `vara stash` command

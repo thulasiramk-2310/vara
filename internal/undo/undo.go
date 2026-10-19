@@ -163,20 +163,41 @@ func undoReflog(in Inputs, prevID types.CommitID) (Result, error) {
 
 // undoSnapshot restores the working directory from the most recent snapshot.
 func undoSnapshot(in Inputs, snapName string) (Result, error) {
-	snapPath := filepath.Join(in.VaraDir, "snapshots", snapName)
+	if _, err := RestoreSnapshot(in.RootDir, filepath.Join(in.VaraDir, "snapshots", snapName)); err != nil {
+		return Result{}, err
+	}
+	return Result{
+		Layer:   3,
+		Message: fmt.Sprintf("Workspace restored from snapshot: %s.", snapName),
+	}, nil
+}
+
+// RestoreSnapshot writes the files in the snapshot archive at snapPath into
+// rootDir and returns how many it wrote. Files the archive does not contain are
+// left alone. An entry that would land outside rootDir, or that is not a plain
+// file or directory, is refused before anything is written.
+func RestoreSnapshot(rootDir, snapPath string) (int, error) {
+	rootAbs, err := filepath.Abs(rootDir)
+	if err != nil {
+		return 0, err
+	}
+	type entry struct {
+		path string
+		dir  bool
+		data []byte
+	}
+	var entries []entry
 
 	f, err := os.Open(snapPath)
 	if err != nil {
-		return Result{}, fmt.Errorf("open snapshot: %w", err)
+		return 0, fmt.Errorf("open snapshot: %w", err)
 	}
 	defer f.Close()
-
 	dec, err := zstd.NewReader(f)
 	if err != nil {
-		return Result{}, fmt.Errorf("zstd decoder: %w", err)
+		return 0, fmt.Errorf("zstd decoder: %w", err)
 	}
 	defer dec.Close()
-
 	tr := tar.NewReader(dec)
 	for {
 		hdr, err := tr.Next()
@@ -184,28 +205,43 @@ func undoSnapshot(in Inputs, snapName string) (Result, error) {
 			break
 		}
 		if err != nil {
-			return Result{}, fmt.Errorf("read tar: %w", err)
+			return 0, fmt.Errorf("read tar: %w", err)
 		}
-
-		absPath := filepath.Join(in.RootDir, filepath.FromSlash(hdr.Name))
-		if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
-			return Result{}, err
+		target := filepath.Join(rootAbs, filepath.FromSlash(hdr.Name))
+		if target != rootAbs && !strings.HasPrefix(target, rootAbs+string(filepath.Separator)) {
+			return 0, fmt.Errorf("snapshot entry %q points outside the repository", hdr.Name)
 		}
-		out, err := os.Create(absPath)
-		if err != nil {
-			return Result{}, fmt.Errorf("create %s: %w", hdr.Name, err)
-		}
-		_, copyErr := io.Copy(out, tr)
-		out.Close()
-		if copyErr != nil {
-			return Result{}, fmt.Errorf("extract %s: %w", hdr.Name, copyErr)
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			entries = append(entries, entry{path: target, dir: true})
+		case tar.TypeReg, '\x00': // pkg/snapshot leaves Typeflag unset: an old-style regular file
+			data, err := io.ReadAll(tr)
+			if err != nil {
+				return 0, fmt.Errorf("extract %s: %w", hdr.Name, err)
+			}
+			entries = append(entries, entry{path: target, data: data})
+		default:
+			return 0, fmt.Errorf("snapshot entry %q is not a plain file", hdr.Name)
 		}
 	}
 
-	return Result{
-		Layer:   3,
-		Message: fmt.Sprintf("Workspace restored from snapshot: %s.", snapName),
-	}, nil
+	written := 0
+	for _, e := range entries {
+		if e.dir {
+			if err := os.MkdirAll(e.path, 0755); err != nil {
+				return written, err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(e.path), 0755); err != nil {
+			return written, err
+		}
+		if err := os.WriteFile(e.path, e.data, 0644); err != nil {
+			return written, fmt.Errorf("write %s: %w", e.path, err)
+		}
+		written++
+	}
+	return written, nil
 }
 
 // checkoutTree mirrors the one in internal/merge to avoid import cycles.

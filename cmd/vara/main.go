@@ -204,6 +204,14 @@ func main() {
 		}
 		fmt.Print(out)
 
+	case "snapshot":
+		ctx := mustCtx(true)
+		out, err := commands.RunSnapshot(ctx, rest)
+		if err != nil {
+			die("snapshot: %v", err)
+		}
+		fmt.Print(out)
+
 	case "undo":
 		force := len(rest) == 1 && rest[0] == "--force"
 		if len(rest) > 0 && !force {
@@ -642,6 +650,7 @@ Commands:
   merge     Join development histories together
   resolve   Automatically fix merge conflicts (ours/theirs/union/auto)
   undo      Revert to the last committed state
+  snapshot  List or restore saved copies of the working tree
   verify    Check repository integrity
   doctor    Diagnose repo, config, and remote health
 
@@ -810,6 +819,17 @@ merge. A commit is refused while any conflict remains unresolved.
   vara resolve --list
   vara resolve --theirs
   vara resolve --union config/hosts
+`,
+	"snapshot": `usage: vara snapshot [list]
+       vara snapshot restore <name> [--force]
+
+VARA saves the working tree in .vara/snapshots before switch, merge and undo
+(RFC-0009 §5). 'list' shows them, newest first. 'restore' writes the files of
+one back; the start of its name is enough when only one snapshot matches.
+Restore changes files only: HEAD, branches and the index are untouched.
+
+Restore refuses while tracked files have uncommitted changes. --force goes
+ahead, after saving the current working tree in a new snapshot.
 `,
 	"undo": `usage: vara undo [--force]
 
