@@ -139,6 +139,14 @@ func RunCommit(ctx *Context, message string) (types.CommitID, error) {
 		os.WriteFile(headPath, []byte("ref: "+refPath+"\n"), 0644)
 	}
 
+	// 4b. Record the commit in the HEAD reflog, which undo reads (RFC-0009 §6).
+	var oldID types.CommitID
+	if len(parents) > 0 {
+		oldID = parents[0]
+	}
+	subject, _, _ := strings.Cut(message, "\n")
+	appendReflog(ctx, oldID, commitID, "commit: "+subject)
+
 	// 5. Update index states (StateAdded -> StateUnmodified, etc.)
 	var newEntries []index.Entry
 	for _, e := range ctx.Index.Entries {

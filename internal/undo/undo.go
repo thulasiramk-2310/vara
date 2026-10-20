@@ -26,6 +26,7 @@ import (
 	"github.com/thulasiramk-2310/vara/pkg/index"
 	"github.com/thulasiramk-2310/vara/pkg/object"
 	"github.com/thulasiramk-2310/vara/pkg/recovery"
+	"github.com/thulasiramk-2310/vara/pkg/reflog"
 	"github.com/thulasiramk-2310/vara/pkg/refs"
 	"github.com/thulasiramk-2310/vara/pkg/types"
 )
@@ -42,6 +43,7 @@ type Inputs struct {
 	RootDir string
 	Index   *index.Index
 	Store   *object.Store
+	Actor   string // Who is recorded in the reflog entry undo writes.
 }
 
 // Undo executes the Recovery Decision Tree (RFC-0009 §3):
@@ -59,22 +61,39 @@ func Undo(in Inputs) (Result, error) {
 		return undoJournal(in, pending[0])
 	}
 
-	// Layer 2: reflog rollback.
-	prevID, err := recovery.PreviousHEAD(in.VaraDir)
+	// Layer 2: reflog rollback, from the current branch's reflog (HEAD's when
+	// detached).
+	logRef := "HEAD"
+	if branch, symErr := refs.NewFSResolver(in.VaraDir).ResolveSymbolic("HEAD"); symErr == nil {
+		logRef = branch
+	}
+	target, err := recovery.UndoTarget(in.VaraDir, logRef)
 	if err == nil {
-		return undoReflog(in, prevID)
+		return undoReflog(in, logRef, target)
+	}
+	if err == recovery.ErrFirstCommit {
+		return Result{}, fmt.Errorf("nothing earlier to undo: this is as far back as the history goes")
 	}
 	if err != recovery.ErrNoHistory {
 		return Result{}, err
 	}
+	if _, headErr := refs.NewFSResolver(in.VaraDir).Resolve("HEAD"); headErr == nil {
+		// The branch has commits but none recorded, as with commits made by
+		// VARA 0.4.3 or earlier. An old snapshot is not their undo.
+		return Result{}, fmt.Errorf("no recorded change on this branch to undo (commits made with VARA 0.4.3 or earlier are not recorded); 'vara snapshot list' shows saved working trees")
+	}
 
-	// Layer 3: snapshot restore.
+	// Layer 3: snapshot restore. Snapshots taken by undo itself are skipped:
+	// the newest one is the copy of the tree this undo just saved, and restoring
+	// it would change nothing. `vara snapshot restore` still reaches them.
 	snaps, err := recovery.ListSnapshots(in.VaraDir)
 	if err != nil {
 		return Result{}, err
 	}
-	if len(snaps) > 0 {
-		return undoSnapshot(in, snaps[0])
+	for _, name := range snaps {
+		if !strings.Contains(name, "-undo-") {
+			return undoSnapshot(in, name)
+		}
 	}
 
 	return Result{}, fmt.Errorf("nothing to undo (no pending transactions, reflog, or snapshots)")
@@ -100,16 +119,34 @@ func undoJournal(in Inputs, txn recovery.PendingTransaction) (Result, error) {
 	}, nil
 }
 
-// undoReflog resets HEAD (and the current branch ref) to prevID, then
-// checks out that commit's tree (RFC-0009 §6).
-func undoReflog(in Inputs, prevID types.CommitID) (Result, error) {
+// undoReflog reverses one reflog entry: it resets HEAD (and the current branch
+// ref) to the entry's old commit, checks out that commit's tree (RFC-0009 §6)
+// and records the undo in the reflog, so the next undo steps further back.
+func undoReflog(in Inputs, logRef string, target reflog.Entry) (Result, error) {
+	resolver := refs.NewFSResolver(in.VaraDir)
+	headID, err := resolver.Resolve("HEAD")
+	if err != nil {
+		return Result{}, fmt.Errorf("read HEAD: %w", err)
+	}
+	if headID != target.NewID {
+		// Something moved HEAD without a reflog entry, for example a commit made
+		// with VARA 0.4.3 or earlier. Resetting would drop that work silently.
+		return Result{}, fmt.Errorf("can't tell what the last change was: HEAD is at %s, but the last recorded change (%s) ended at %s. Nothing was changed",
+			headID.String()[:7], target.Message, target.NewID.String()[:7])
+	}
+	if from, ok := strings.CutPrefix(target.Message, "switch: moving from "); ok {
+		// Only a detached HEAD's reflog holds switches. Moving HEAD back would
+		// not restore the branch; switching back is the undo of a switch.
+		from, _, _ = strings.Cut(from, " to ")
+		return Result{}, fmt.Errorf("the last change was a branch switch; run 'vara switch %s' to go back. Nothing was changed", from)
+	}
+	prevID := target.OldID
+
 	txn, err := transaction.Begin(in.VaraDir, "undo", locking.NameRefs, locking.NameIndex)
 	if err != nil {
 		return Result{}, fmt.Errorf("%w", err)
 	}
 	defer txn.Rollback()
-
-	resolver := refs.NewFSResolver(in.VaraDir)
 
 	// Find the current branch ref.
 	currentRef, symErr := resolver.ResolveSymbolic("HEAD")
@@ -127,6 +164,12 @@ func undoReflog(in Inputs, prevID types.CommitID) (Result, error) {
 	}
 
 	// Checkout the previous commit's tree into a fresh index.
+	wasTracked := make(map[string]bool, len(in.Index.Entries))
+	for _, e := range in.Index.Entries {
+		if e.State == index.StateUnmodified { // committed; staged-only files stay
+			wasTracked[e.Path] = true
+		}
+	}
 	in.Index.Entries = nil
 	obj, err := in.Store.Read(types.ObjectID(prevID))
 	if err != nil {
@@ -138,6 +181,16 @@ func undoReflog(in Inputs, prevID types.CommitID) (Result, error) {
 	}
 	if err := checkoutTree(in.Store, prevCommit.TreeHash, in.RootDir, in.Index); err != nil {
 		return Result{}, fmt.Errorf("checkout: %w", err)
+	}
+	// Committed files the undone change added are removed. The snapshot
+	// RunUndo takes first still holds them.
+	for _, e := range in.Index.Entries {
+		delete(wasTracked, e.Path)
+	}
+	for path := range wasTracked {
+		if err := removeTracked(in.RootDir, path); err != nil {
+			return Result{}, err
+		}
 	}
 
 	// Persist index.
@@ -152,12 +205,21 @@ func undoReflog(in Inputs, prevID types.CommitID) (Result, error) {
 	// Clear MERGE_HEAD if we were in a suspended merge.
 	recovery.ClearMergeHead(in.VaraDir)
 
+	rm := reflog.NewManager(in.VaraDir)
+	msg := recovery.UndoPrefix + target.Message
+	if err := rm.Append(logRef, headID, prevID, in.Actor, msg); err != nil {
+		return Result{}, fmt.Errorf("record undo in reflog: %w", err)
+	}
+	if logRef != "HEAD" {
+		rm.Append("HEAD", headID, prevID, in.Actor, msg)
+	}
+
 	if err := txn.Commit(); err != nil {
 		return Result{}, err
 	}
 	return Result{
 		Layer:   2,
-		Message: fmt.Sprintf("Undone: HEAD reset to %s.", prevID.String()[:7]),
+		Message: fmt.Sprintf("Undid the last change (%s). HEAD is now %s.", target.Message, prevID.String()[:7]),
 	}, nil
 }
 
@@ -242,6 +304,21 @@ func RestoreSnapshot(rootDir, snapPath string) (int, error) {
 		written++
 	}
 	return written, nil
+}
+
+// removeTracked deletes a tracked file and any directories it leaves empty,
+// stopping at rootDir.
+func removeTracked(rootDir, relPath string) error {
+	abs := filepath.Join(rootDir, filepath.FromSlash(relPath))
+	if err := os.Remove(abs); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove %s: %w", relPath, err)
+	}
+	for dir := filepath.Dir(abs); dir != rootDir && strings.HasPrefix(dir, rootDir); dir = filepath.Dir(dir) {
+		if os.Remove(dir) != nil {
+			break // not empty, or already gone
+		}
+	}
+	return nil
 }
 
 // checkoutTree mirrors the one in internal/merge to avoid import cycles.

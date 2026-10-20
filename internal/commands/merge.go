@@ -509,7 +509,13 @@ func advanceRef(ctx *Context, resolver *refs.FSResolver, newID types.CommitID) e
 	return resolver.Update(currentRef, newID)
 }
 
+// appendReflog records a move of HEAD in the HEAD reflog and, when HEAD is on a
+// branch, in that branch's reflog too, which is the one undo reads.
 func appendReflog(ctx *Context, oldID, newID types.CommitID, message string) {
 	rm := reflog.NewManager(ctx.Repository.VaraDir)
-	rm.Append("HEAD", oldID, newID, reflogActor(ctx.Repository.VaraDir), message)
+	actor := reflogActor(ctx.Repository.VaraDir)
+	rm.Append("HEAD", oldID, newID, actor, message)
+	if branch, err := refs.NewFSResolver(ctx.Repository.VaraDir).ResolveSymbolic("HEAD"); err == nil {
+		rm.Append(branch, oldID, newID, actor, message)
+	}
 }

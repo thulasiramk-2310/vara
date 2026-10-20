@@ -98,22 +98,42 @@ func HeadHistory(varaDir string) ([]ReflogEntry, error) {
 	return entries, nil
 }
 
-// PreviousHEAD returns the commit ID that HEAD pointed to before the last
-// recorded reflog entry. Returns ErrNoHistory if the reflog is empty or
-// there is no previous entry.
-func PreviousHEAD(varaDir string) (types.CommitID, error) {
-	entries, err := HeadHistory(varaDir)
+// UndoPrefix starts the message of every reflog entry written by undo.
+const UndoPrefix = "undo: "
+
+// UndoTarget returns the entry of refName's reflog (the current branch, or
+// HEAD when detached) that the next undo reverses. Reading the branch's own
+// reflog keeps switches out of the walk. It walks the reflog newest-first; each entry written by undo is skipped together with
+// the entry it reversed, so consecutive undos step further back instead of
+// landing on the same commit. ErrNoHistory means the reflog holds nothing to
+// reverse; ErrFirstCommit means the walk reached the repository's first commit.
+func UndoTarget(varaDir, refName string) (ReflogEntry, error) {
+	entries, err := reflog.NewManager(varaDir).Read(refName)
 	if err != nil {
-		return types.CommitID{}, err
+		return ReflogEntry{}, fmt.Errorf("recovery: read %s reflog: %w", refName, err)
 	}
-	if len(entries) == 0 {
-		return types.CommitID{}, ErrNoHistory
+	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
+		entries[i], entries[j] = entries[j], entries[i]
 	}
-	prev := entries[0].OldID
-	if prev == (types.CommitID{}) {
-		return types.CommitID{}, ErrNoHistory
+	skip := 0
+	for _, e := range entries {
+		if strings.HasPrefix(e.Message, UndoPrefix) {
+			skip++
+			continue
+		}
+		if skip > 0 {
+			skip--
+			continue
+		}
+		if e.OldID == (types.CommitID{}) {
+			return ReflogEntry{}, ErrFirstCommit
+		}
+		return e, nil
 	}
-	return prev, nil
+	if len(entries) > 0 {
+		return ReflogEntry{}, ErrFirstCommit
+	}
+	return ReflogEntry{}, ErrNoHistory
 }
 
 // ListSnapshots returns snapshot filenames in .vara/snapshots/, newest-first.
@@ -166,3 +186,7 @@ func readJournalEntry(path string) (journalFile, error) {
 
 // ErrNoHistory is returned when there is no prior HEAD state to restore.
 var ErrNoHistory = fmt.Errorf("recovery: no previous HEAD state recorded in reflog")
+
+// ErrFirstCommit is returned when every recorded change back to the first
+// commit has already been undone.
+var ErrFirstCommit = fmt.Errorf("recovery: nothing earlier to undo")

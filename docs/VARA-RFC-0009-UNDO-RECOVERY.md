@@ -1,10 +1,10 @@
 VARA RFC: 0009
 Title: Undo and Recovery
 Status: Accepted
-Version: 1.1.0
+Version: 1.2.0
 Authors: Thulasiram K
 Created: 2026-06-28
-Last Updated: 2026-06-28
+Last Updated: 2026-10-20
 Depends On: RFC-0000, RFC-0003, RFC-0006, RFC-0007
 Supersedes: None
 Superseded By: None
@@ -57,7 +57,11 @@ Unlike Git, VARA automatically snapshots the working directory before any mutati
 
 # 6. `vara undo` Algorithm
 1. **Transaction BEGIN**.
-2. Read `.vara/logs/HEAD`.
-3. **Reflog Rollback:** Point refs back to previous hashes.
-4. **Snapshot Restoration:** Unpack the corresponding `.tar.zst` into the working directory.
-5. **Transaction COMMIT.**
+2. Read the reflog of the current branch (`.vara/logs/refs/heads/<branch>`), or `.vara/logs/HEAD` when HEAD is detached. Commits and merges append to both.
+3. **Pick the entry:** walk newest-first. Each entry whose message starts with `undo: ` is skipped together with the entry it reversed, so consecutive undos step further back. Reaching an entry with no previous commit means there is nothing earlier to undo.
+4. **Check:** the entry's new commit MUST equal the current HEAD. If it does not, something moved HEAD without a record, and undo stops without changing anything.
+5. **Reflog Rollback:** point the branch (or HEAD) at the entry's old commit, check out its tree, and remove committed files it does not contain.
+6. **Record:** append `undo: <message of the reversed entry>` to the branch reflog and to HEAD's.
+7. **Transaction COMMIT.**
+
+The working tree is snapshotted before step 1 (§5). Layer 3 never restores a snapshot taken by undo itself; `vara snapshot restore` does.

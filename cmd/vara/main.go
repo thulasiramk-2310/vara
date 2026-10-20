@@ -836,10 +836,14 @@ ahead, after saving the current working tree in a new snapshot.
 Revert to the last known good state using three-layer recovery (RFC-0009):
 
   1. Journal rollback   — incomplete transaction (crash recovery)
-  2. Reflog restore     — last committed HEAD position
+  2. Reflog restore     — reverse the last commit or merge
   3. Snapshot restore   — pre-operation working-tree archive
 
 Tries each layer in order; stops at the first one that succeeds.
+
+Undo works on the branch you are on: each run reverses one more of its commits
+or merges, back to where the branch began. Files the undone commit added are
+removed. A branch switch is not undone; switch back with 'vara switch'.
 
 Undo refuses while tracked files have uncommitted changes, because it would
 overwrite them. --force undoes anyway. Either way the working tree is saved

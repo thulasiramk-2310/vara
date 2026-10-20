@@ -79,7 +79,7 @@ Measured on AMD Ryzen 9 8945HS, 10 000-commit repository:
 
 ## Known Limitations
 
-- `vara undo` returns to the previous HEAD only once: a second undo does not go further back (`vara snapshot restore` brings back a saved working tree)
+- `vara undo` reverses the current branch's commits and merges, one per run. Commits made with VARA 0.4.3 or earlier were not recorded in the reflog, so undo stops with an explanation when it reaches one instead of guessing
 - No rename detection in merge
 - No pack-file compaction (objects grow unboundedly)
 - No `vara stash` command

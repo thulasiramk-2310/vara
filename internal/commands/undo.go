@@ -41,6 +41,7 @@ func RunUndo(ctx *Context, force bool) (string, error) {
 		RootDir: ctx.Repository.RootDir,
 		Index:   ctx.Index,
 		Store:   store,
+		Actor:   reflogActor(ctx.Repository.VaraDir),
 	})
 	if err != nil {
 		return "", err
