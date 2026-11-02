@@ -16,9 +16,16 @@ function statusMeta(s: string): { label: string; bg: string; fg: string } {
 
 // FileDiffView renders one file's unified diff. Every line is a React text child
 // (escaped, inert) — the client mirror of the RFC-0023 D4 inert-diff guarantee.
-const FileDiffView: React.FC<{ fd: FileDiffResponse }> = ({ fd }) => {
+const FileDiffView: React.FC<{ fd: FileDiffResponse; repo: string; path: string; id: string }> = ({ fd, repo, path, id }) => {
   if (fd.binary) return <div style={{ padding: '20px', color: 'var(--dim)', fontSize: '13px' }}>Binary file — no textual diff.</div>;
-  if (fd.truncated) return <div style={{ padding: '20px', color: 'var(--dim)', fontSize: '13px' }}>Diff too large to display inline.</div>;
+  if (fd.truncated) {
+    return (
+      <div style={{ padding: '20px', color: 'var(--dim)', fontSize: '13px' }}>
+        This file changed too much to show line by line.{' '}
+        <Link to={routes.blob(repo, path, id)} style={{ color: 'var(--accent)' }}>Read the file as it is in this commit</Link>.
+      </div>
+    );
+  }
   if (!fd.hunks || !fd.hunks.length) return <div style={{ padding: '20px', color: 'var(--dim)', fontSize: '13px' }}>No changes.</div>;
 
   return (
@@ -106,7 +113,7 @@ const FileRow: React.FC<{ repo: string; id: string; base: string; file: DiffFile
         <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '17px', height: '17px', borderRadius: '5px', background: meta.bg, color: meta.fg, fontSize: '11px', fontWeight: 700 }}>{meta.label}</span>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.path}</span>
       </button>
-      {open && (loading ? <div style={{ padding: '16px' }}><Loading label="Loading diff…" /></div> : err ? <div style={{ padding: '16px' }}><ErrorState error={err} /></div> : fd ? <FileDiffView fd={fd} /> : null)}
+      {open && (loading ? <div style={{ padding: '16px' }}><Loading label="Loading diff…" /></div> : err ? <div style={{ padding: '16px' }}><ErrorState error={err} /></div> : fd ? <FileDiffView fd={fd} repo={repo} path={file.path} id={id} /> : null)}
     </div>
   );
 };
