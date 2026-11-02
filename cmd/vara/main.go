@@ -186,7 +186,7 @@ func main() {
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "merge:", err)
 			}
-			fmt.Fprintln(os.Stderr, "usage: vara merge <branch> [--ours|--theirs|--union|--manual]  (or: vara merge --abort | --continue)")
+			fmt.Fprintln(os.Stderr, "usage: vara merge <branch> [--ours|--theirs|--union|--manual|--interactive]  (or: vara merge --abort | --continue)")
 			os.Exit(1)
 		}
 		ctx := mustCtx(true)
@@ -204,7 +204,18 @@ func main() {
 		if err != nil {
 			die("resolve: %v", err)
 		}
-		out, err := commands.RunResolve(ctx, ra)
+		var out string
+		if ra.Interactive {
+			if ra.Strategy != "" || ra.List {
+				die("resolve: --interactive asks about each conflict, so it cannot be combined with --ours, --theirs, --union, --auto or --list")
+			}
+			if !commands.IsTerminal(os.Stdin) {
+				die("resolve: --interactive needs a terminal to ask you questions")
+			}
+			out, err = commands.RunResolveInteractive(ctx, ra, commands.NewTerminalSession())
+		} else {
+			out, err = commands.RunResolve(ctx, ra)
+		}
 		if err != nil {
 			die("resolve: %v", err)
 		}
@@ -574,7 +585,7 @@ func parseMergeFlagsOnly(rest []string) ([]string, commands.MergeOptions, error)
 	chosen := ""
 	pick := func(flag string) error {
 		if chosen != "" && chosen != flag {
-			return fmt.Errorf("choose one of --ours, --theirs, --union or --manual, not both %s and %s", chosen, flag)
+			return fmt.Errorf("choose one of --ours, --theirs, --union, --manual or --interactive, not both %s and %s", chosen, flag)
 		}
 		chosen = flag
 		return nil
@@ -592,6 +603,14 @@ func parseMergeFlagsOnly(rest []string) ([]string, commands.MergeOptions, error)
 				return nil, opts, err
 			}
 			opts.Manual = true
+		case "--interactive", "-i":
+			if err := pick("--interactive"); err != nil {
+				return nil, opts, err
+			}
+			if !commands.IsTerminal(os.Stdin) {
+				return nil, opts, fmt.Errorf("--interactive needs a terminal to ask you questions")
+			}
+			opts.Interactive = commands.NewTerminalSession()
 		default:
 			if strings.HasPrefix(a, "-") {
 				return nil, opts, fmt.Errorf("unknown flag %q", a)
@@ -630,6 +649,8 @@ func parseResolveFlags(rest []string) (commands.ResolveArgs, error) {
 			ra.Strategy = conflict.Auto
 		case "--list", "-l":
 			ra.List = true
+		case "--interactive", "-i":
+			ra.Interactive = true
 		case "--merge", "--diff3", "--zdiff3":
 			s, _ := conflict.ParseMarkerStyle(strings.TrimPrefix(a, "--"))
 			ra.Style = s
@@ -847,7 +868,7 @@ branch's latest commit, and the index is updated accordingly.
 A snapshot of the current working tree is taken before switching so that
 'vara undo' can restore the pre-switch state.
 `,
-	"merge": `usage: vara merge <branch> [--ours | --theirs | --union | --manual]
+	"merge": `usage: vara merge <branch> [--ours | --theirs | --union | --manual | --interactive]
        vara merge --continue [-m <msg>]
        vara merge --abort
 
@@ -866,6 +887,8 @@ those are left marked for 'vara resolve'. To decide up front:
   --theirs      keep the other branch's side
   --union       keep both sides, yours first (good for append-only files)
   --manual      leave every conflict for you, ignoring the settings below
+  --interactive (-i) decide each conflict yourself, one at a time, in the terminal;
+                settings below still settle what they cover first
 
 or set it once in the repository config (.vara/config), per file if you like:
 
@@ -891,6 +914,7 @@ with 'vara undo'. In 'vara pull', "ours" is your branch and "theirs" is the remo
                 merge never touched.
 `,
 	"resolve": `usage: vara resolve [--ours | --theirs | --union | --auto] [<pathspec>...]
+       vara resolve --interactive [<pathspec>...]
        vara resolve --list
 
 Automatically fix the conflict markers left in the working tree by a conflicted
@@ -909,6 +933,12 @@ Marker style for conflicts --auto leaves behind (default: repo config
   --merge    classic 2-way markers
   --diff3    add the ||||||| base section (common ancestor)
   --zdiff3   diff3 with shared leading/trailing lines hoisted out as context
+
+Interactively (needs a terminal):
+  --interactive, -i   go through the unresolved conflicts one at a time and choose
+             for each: ours, theirs, both, edit it yourself, or skip it. Each file
+             is saved as you go, so you can quit and run it again later; the files
+             and conflicts you skipped are the ones it asks about next.
 
 Other:
   --list     list conflicted files and their conflict counts; change nothing
@@ -1004,7 +1034,7 @@ remote-tracking references refs/remotes/<remote>/* (RFC-0014 §9.2).
 Local branches are NOT modified. Use 'vara merge' or 'vara pull' to
 integrate fetched changes.
 `,
-	"pull": `usage: vara pull [<remote>] [<branch>] [--ours | --theirs | --union | --manual]
+	"pull": `usage: vara pull [<remote>] [<branch>] [--ours | --theirs | --union | --manual | --interactive]
 
 Fetch from <remote> (default: origin) and integrate the corresponding
 remote-tracking branch into the current branch (RFC-0014 §9.3).

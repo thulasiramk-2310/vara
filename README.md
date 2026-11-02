@@ -37,7 +37,7 @@ VARA is built around a protocol-first architecture: SHA-256 object identity, zst
 | **Hierarchical locking** | O_EXCL file locks acquired in fixed order. Deadlock-free by construction (RFC-0006). |
 | **Repository verification** | Seven-phase integrity report: objects → trees → commits → DAG → refs → index → journal. |
 | **Three-way merge** | Myers O(ND) diff, order-independent base-aware line merge, **zdiff3** conflict markers. |
-| **Decide conflicts up front** | `merge`/`pull` with `--ours`/`--theirs`/`--union`, or per-file `[merge "rule"]` settings; anything not covered still waits for you. |
+| **Decide conflicts your way** | `merge`/`pull` with `--ours`/`--theirs`/`--union`, per-file `[merge "rule"]` settings, or `--interactive` to choose hunk by hunk; anything not covered still waits for you. |
 | **Conflict lifecycle** | `resolve` (ours/theirs/union/auto), `rm`, `merge --abort`/`--continue`, conflict-aware `status` & `diff`. Content-bearing sidecar; commit gated until resolved. |
 | **Structural merge** | Opt-in per-type merge of **JSON / YAML / TOML** — independent-key edits auto-combine instead of false-conflicting (RFC-0025). |
 | **Three-layer undo** | Journal rollback → reflog restore → snapshot archive. Always a path to recovery. |
@@ -201,6 +201,24 @@ vara pull --theirs              # the same choice for a pull ("theirs" is the re
 [merge]
   strategy = manual             # what to do for files no rule covers (the default)
 ```
+
+**Deciding one conflict at a time.** For the conflicts that need a human eye, ask to be
+walked through them in the terminal:
+
+```sh
+vara merge feature --interactive   # rules and defaults settle what they cover; you decide the rest
+vara resolve --interactive         # or run it later on a merge that is already open
+```
+
+For each conflict you see both sides (and the common ancestor, when there is one) with a
+few lines around it, and choose: keep **o**urs, **t**heirs, **b**oth (ours first), **e**dit
+it yourself in `$VISUAL`/`$EDITOR`, **s**kip it, or **q**uit. `O` or `T` keeps ours or
+theirs for every remaining conflict in that file. Each file is saved as you go, so quitting,
+or a closed terminal, loses nothing: run it again and it asks only about what is left.
+A skipped conflict keeps its markers and `vara merge --continue` refuses until it is
+settled. It needs a terminal, and it cannot be combined with `--ours`, `--theirs` or
+`--union`. For a binary file you pick one whole version, and for a file one side deleted
+you choose to keep it or delete it.
 
 A flag beats a rule, and a rule beats the default. If every conflict is covered the
 merge is completed in one step; if any is left, it stays open for `vara resolve`. The

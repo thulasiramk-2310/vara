@@ -40,11 +40,13 @@ import (
 
 // ResolveArgs carries the parsed options for `vara resolve`.
 type ResolveArgs struct {
-	Strategy conflict.Strategy    // ours | theirs | union | auto
-	List     bool                 // only list conflicted files, change nothing
-	Paths    []string             // optional pathspecs to restrict to
-	Style    conflict.MarkerStyle // marker style for auto's leftover conflicts
-	StyleSet bool                 // whether Style was set explicitly (else use config)
+	Strategy conflict.Strategy // ours | theirs | union | auto
+	List     bool              // only list conflicted files, change nothing
+	// Interactive asks about each conflict instead of applying one strategy to all.
+	Interactive bool
+	Paths       []string             // optional pathspecs to restrict to
+	Style       conflict.MarkerStyle // marker style for auto's leftover conflicts
+	StyleSet    bool                 // whether Style was set explicitly (else use config)
 }
 
 // RunResolve executes `vara resolve`. It returns human-readable output.

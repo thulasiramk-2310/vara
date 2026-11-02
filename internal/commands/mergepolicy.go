@@ -22,6 +22,9 @@ type MergeOptions struct {
 	// (vara merge --manual). The default, with no options and no config, is the
 	// same: conflicts are left marked for 'vara resolve'.
 	Manual bool
+	// Interactive, when set, walks through whatever the choices above leave open,
+	// asking about each conflict (vara merge --interactive).
+	Interactive *Session
 }
 
 // Strategies a merge may apply on its own. "auto" is not one of them: the engine
@@ -176,7 +179,7 @@ func applyMergePolicy(ctx *Context, state *mergestate.State, opts MergeOptions) 
 			left = append(left, f)
 		}
 	}
-	if len(byStrategy) == 0 {
+	if len(byStrategy) == 0 && opts.Interactive == nil {
 		return out.String() + conflictSummary(state.Paths()), nil
 	}
 
@@ -202,7 +205,28 @@ func applyMergePolicy(ctx *Context, state *mergestate.State, opts MergeOptions) 
 	if err != nil || !ok {
 		return out.String(), err
 	}
-	if remaining := st.UnresolvedPaths(); len(remaining) > 0 {
+	remaining := st.UnresolvedPaths()
+	if len(remaining) > 0 && opts.Interactive != nil {
+		out.WriteString("\n")
+		res, ierr := RunResolveInteractive(ctx, ResolveArgs{Paths: remaining}, opts.Interactive)
+		out.WriteString(res)
+		if ierr != nil {
+			return out.String(), ierr
+		}
+		if st, ok, err = mergestate.Read(ctx.Repository.VaraDir); err != nil || !ok {
+			return out.String(), err
+		}
+		remaining = st.UnresolvedPaths()
+		if len(remaining) == 0 {
+			s := opts.Interactive
+			s.printf("Complete the merge now? [Y/n] ")
+			if ans, got := s.readLine(); !got || !(ans == "" || strings.EqualFold(ans, "y") || strings.EqualFold(ans, "yes")) {
+				out.WriteString("The merge is left open. Run 'vara merge --continue' to complete it, or 'vara merge --abort' to back out.\n")
+				return out.String(), nil
+			}
+		}
+	}
+	if len(remaining) > 0 {
 		out.WriteString(conflictSummary(remaining))
 		return out.String(), nil
 	}
@@ -213,5 +237,6 @@ func applyMergePolicy(ctx *Context, state *mergestate.State, opts MergeOptions) 
 	// The resolve step ends with "run 'vara commit' to complete the merge". That is
 	// no longer true, because the merge is being completed right here.
 	text := strings.ReplaceAll(out.String(), "All conflicts resolved. Run 'vara commit' to complete the merge.\n", "")
+	text = strings.ReplaceAll(text, "All conflicts resolved. Run 'vara merge --continue' to complete the merge.\n", "")
 	return text + cont, nil
 }
