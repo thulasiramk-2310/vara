@@ -77,7 +77,7 @@ async function load(): Promise<Contributions> {
 }
 
 export function useContributions() {
-  return useAsync<Contributions>(load, []);
+  return useAsync<Contributions>('contributions', load, []);
 }
 
 // authInitial extracts a display initial from a commit author string such as

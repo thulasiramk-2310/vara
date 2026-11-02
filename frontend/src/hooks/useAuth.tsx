@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api, Whoami } from '../api/client';
+import { queryClient } from './useAsync';
 
 // AuthProvider holds the real signed-in identity (RFC-0020 whoami) and exposes
 // login/logout backed by the session-cookie endpoints. It is the single source of
@@ -44,6 +45,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async (username: string, password: string) => {
       // The cookie is set by this call; re-probe whoami to learn the identity.
       await api.login(username, password);
+      // Anything cached was fetched as someone else; start clean.
+      queryClient.clear();
       await refresh();
     },
     [refresh],
@@ -56,6 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Whether or not the server acknowledged, drop to anonymous locally and
       // reconcile with the server's view.
       setMe(ANON);
+      queryClient.clear();
       await refresh();
     }
   }, [refresh]);

@@ -32,7 +32,7 @@ export const BlobPage: React.FC = () => {
   const { copy } = useToast();
 
   const ref = useRepoRef();
-  const blob = useAsync(() => api.blob(repo, path, ref), [repo, path, ref]);
+  const blob = useAsync('blob', () => api.blob(repo, path, ref), [repo, path, ref]);
   const rawHref = api.rawUrl(repo, path, ref);
   const fname = path.split('/').pop() || path;
   usePageTitle(fname, repo);

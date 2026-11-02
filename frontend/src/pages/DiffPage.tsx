@@ -116,8 +116,8 @@ const FileRow: React.FC<{ repo: string; id: string; base: string; file: DiffFile
 export const DiffPage: React.FC = () => {
   const { repo = '', id = '' } = useParams();
   usePageTitle(`Commit ${id.slice(0, 10)}`, repo);
-  const detail = useAsync(() => api.commit(repo, id), [repo, id]);
-  const summary = useAsync(() => api.commitDiff(repo, id), [repo, id]);
+  const detail = useAsync('commit', () => api.commit(repo, id), [repo, id]);
+  const summary = useAsync('commit-diff', () => api.commitDiff(repo, id), [repo, id]);
 
   if (detail.loading || summary.loading) return <div style={{ animation: 'v-fade .2s ease' }}><Loading /></div>;
   if (detail.error) return <ErrorState error={detail.error} />;

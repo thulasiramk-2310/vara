@@ -5,6 +5,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { queryClient } from '../hooks/useAsync';
 
 // NewRepoPage creates a real repository via the RFC-0019 control plane
 // (POST /_vara/repositories). v0.4 repositories are private by design; the
@@ -37,6 +38,8 @@ export const NewRepoPage: React.FC = () => {
     setBusy(true);
     try {
       await api.createRepo(name.trim());
+      // The repository list on the dashboard is cached; make it fetch the new one.
+      await queryClient.invalidateQueries({ queryKey: ['repo-cards'] });
       showToast(`Created ${name.trim()}`);
       navigate(`/r/${encodeURIComponent(name.trim())}`);
     } catch (err) {

@@ -34,8 +34,8 @@ export const CodePage: React.FC = () => {
   const ref = useRepoRef();
   usePageTitle(path || undefined, repo);
 
-  const sum = useAsync(() => api.summary(repo), [repo]);
-  const tree = useAsync(() => api.tree(repo, path, ref), [repo, path, ref]);
+  const sum = useAsync('summary', () => api.summary(repo), [repo]);
+  const tree = useAsync('tree', () => api.tree(repo, path, ref), [repo, path, ref]);
 
   const entries = tree.data ? sortEntries(tree.data.entries) : [];
   const language = tree.data ? inferLanguage(tree.data.entries.filter((e) => e.type !== 'dir').map((e) => e.name)) : null;
@@ -43,7 +43,7 @@ export const CodePage: React.FC = () => {
   // Root README, rendered as a preview below the file list.
   const readmeName = path === '' ? tree.data?.entries.find((e) => e.type !== 'dir' && README_RE.test(e.name))?.name : undefined;
   const isMd = !!readmeName && /\.(md|markdown|mdown)$/i.test(readmeName);
-  const readme = useAsync(async () => {
+  const readme = useAsync('readme', async () => {
     if (!readmeName) return null;
     const b = await api.blob(repo, readmeName, ref);
     return b.binary ? null : b;

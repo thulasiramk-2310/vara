@@ -1,31 +1,49 @@
-import { useCallback, useEffect, useState } from 'react';
+import { QueryClient, useQuery } from '@tanstack/react-query';
 import { ApiError } from '../api/client';
 
 export interface AsyncState<T> {
   data?: T;
   error?: ApiError;
   loading: boolean;
-  retry: () => void; // run the loader again (the Try again button)
+  retry: () => void; // fetch again (the Try again button)
 }
 
-// useAsync runs an async loader and tracks {loading, data, error}, cancelling
-// stale results when deps change or the component unmounts.
-export function useAsync<T>(fn: () => Promise<T>, deps: React.DependencyList): AsyncState<T> {
-  const [state, setState] = useState<Omit<AsyncState<T>, 'retry'>>({ loading: true });
-  const [attempt, setAttempt] = useState(0);
-  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+// shouldRetry decides which failures are worth another attempt. A network
+// failure or a 5xx may pass on its own; a 4xx (not found, not permitted, sign in)
+// will give the same answer again, so retrying only delays the message.
+export function shouldRetry(failures: number, error: unknown): boolean {
+  const e = error as Partial<ApiError> | undefined;
+  const transient = e?.code === 'NETWORK' || (typeof e?.status === 'number' && e.status >= 500);
+  return transient && failures < 2;
+}
 
-  useEffect(() => {
-    let alive = true;
-    setState({ loading: true });
-    fn()
-      .then((data) => alive && setState({ loading: false, data }))
-      .catch((error: ApiError) => alive && setState({ loading: false, error }));
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, attempt]);
+// One cache for the whole app. Pages that ask for the same thing within
+// `staleTime` share one request, and going Back shows the previous page at once.
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      retry: shouldRetry,
+      retryDelay: (attempt) => Math.min(500 * 2 ** attempt, 4000),
+      // Refetching whenever the window gains focus would flash skeletons while
+      // someone is reading; the Hub's data changes when a push lands, not by the second.
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
-  return { ...state, retry };
+// useAsync runs one read. `name` and `deps` together identify it in the cache, so
+// every distinct request needs its own name ("tree", "blob", ...) and every value
+// the request depends on in `deps`.
+export function useAsync<T>(name: string, fn: () => Promise<T>, deps: readonly unknown[]): AsyncState<T> {
+  const q = useQuery<T, ApiError>({ queryKey: [name, ...deps], queryFn: fn });
+  return {
+    data: q.data,
+    error: q.error ?? undefined,
+    // `loading` means "nothing to show yet". A background refetch of data that is
+    // already on screen does not blank the page.
+    loading: q.isPending,
+    retry: () => void q.refetch(),
+  };
 }

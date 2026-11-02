@@ -18,7 +18,7 @@ export function useRepoRef(): string {
 export const BranchSwitcher: React.FC<{ repo: string; to: (ref: string) => string }> = ({ repo, to }) => {
   const navigate = useNavigate();
   const ref = useRepoRef();
-  const branches = useAsync(() => api.branches(repo), [repo]);
+  const branches = useAsync('branches', () => api.branches(repo), [repo]);
 
   const list = branches.data?.branches ?? [];
   // Nothing to switch between until the list arrives, or when there is only one.

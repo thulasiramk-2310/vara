@@ -30,5 +30,5 @@ async function load(): Promise<RepoCardData[]> {
 }
 
 export function useRepoCards() {
-  return useAsync<RepoCardData[]>(load, []);
+  return useAsync<RepoCardData[]>('repo-cards', load, []);
 }

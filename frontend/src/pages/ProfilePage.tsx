@@ -17,7 +17,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 // honest projection of what the read API already answers.
 export const ProfilePage: React.FC = () => {
   usePageTitle('Profile');
-  const me = useAsync<Whoami>(() => api.whoami().catch(() => ({ id: 'anonymous', anonymous: true })), []);
+  const me = useAsync<Whoami>('whoami', () => api.whoami().catch(() => ({ id: 'anonymous', anonymous: true })), []);
   const repos = useRepoCards();
   const contrib = useContributions();
 
