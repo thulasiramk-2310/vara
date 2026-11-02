@@ -11,7 +11,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children, authChips }) =
   const { go } = useAppNavigation();
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+    <div className="v-auth">
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '40px' }}>
         <div style={{ width: '100%', maxWidth: '360px', animation: 'v-fade .25s ease' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px', cursor: 'pointer' }} onClick={() => go('/')}>
@@ -23,7 +23,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children, authChips }) =
           {children}
         </div>
       </div>
-      <div
+      <div className="v-auth-aside"
         style={{
           background: 'var(--inset)',
           borderLeft: '1px solid var(--border)',

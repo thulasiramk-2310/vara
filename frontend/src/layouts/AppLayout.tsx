@@ -60,24 +60,25 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ theme, toggleTheme }) => {
     };
   };
 
-  // No hardcoded counts — commits is real (a count would need a fetch) and
-  // pulls/issues are v0.5 stubs with nothing to count.
+  // No hardcoded counts: commits would need a fetch. Pull requests and issues
+  // are v0.5 features, so their tabs say "soon" instead of implying they work.
   const repoTabs = [
     tab('code', 'Code'),
     tab('commits', 'Commits'),
-    tab('pulls', 'Pull requests'),
-    tab('issues', 'Issues'),
+    tab('pulls', 'Pull requests', 'soon'),
+    tab('issues', 'Issues', 'soon'),
     tab('search', 'Search')
   ];
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <a href="#main" className="v-skip">Skip to content</a>
       <header style={{ position: 'sticky', top: 0, zIndex: 40, display: 'flex', alignItems: 'center', gap: '16px', height: '56px', padding: '0 20px', background: 'color-mix(in srgb, var(--panel) 90%, transparent)', backdropFilter: 'blur(10px)', borderBottom: '1px solid var(--border)' }}>
         <Link to={routes.dashboard} aria-label="Home" style={{ display: 'flex', alignItems: 'center', gap: '9px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', textDecoration: 'none' }}>
           <span style={{ color: 'var(--text)', display: 'flex' }}>
             <Logo size={22} />
           </span>
-          <span style={{ fontWeight: 680, fontSize: '16px', letterSpacing: '.2px' }}>VARA <span style={{ color: 'var(--brand-red)' }}>HUB</span></span>
+          <span style={{ fontWeight: 680, fontSize: '16px', letterSpacing: '.2px', whiteSpace: 'nowrap' }}>VARA <span style={{ color: 'var(--brand-red)' }}>HUB</span></span>
         </Link>
         
         {inRepo && (
@@ -103,7 +104,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ theme, toggleTheme }) => {
         <div style={{ flex: 1 }} />
         
         {!isLanding && (
-          <div style={{ position: 'relative', width: '280px', maxWidth: '34vw' }}>
+          <div className="v-hdr-search" style={{ position: 'relative', width: '280px', maxWidth: '34vw' }}>
             <svg viewBox="0 0 16 16" width="14" height="14" fill="var(--faint)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}>
               <path d="M10.68 11.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06ZM11.5 7a4.5 4.5 0 1 0-9 0 4.5 4.5 0 0 0 9 0Z" />
             </svg>
@@ -147,8 +148,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ theme, toggleTheme }) => {
         
         {!authed ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <Link to="/login" style={{ color: 'var(--text)', fontSize: '13.5px', fontWeight: 560, textDecoration: 'none' }}>Sign in</Link>
-            {isLanding && <Link to="/signup" style={{ background: 'var(--accent)', color: 'var(--accent-fg)', borderRadius: '8px', padding: '7px 15px', fontSize: '13.5px', fontWeight: 600, textDecoration: 'none' }}>Sign up</Link>}
+            <Link to="/login" style={{ color: 'var(--text)', fontSize: '13.5px', fontWeight: 560, textDecoration: 'none', whiteSpace: 'nowrap' }}>Sign in</Link>
           </div>
         ) : (
         <div ref={menuRef} style={{ position: 'relative' }}>
@@ -182,11 +182,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ theme, toggleTheme }) => {
 
       {inRepo && (
         <div style={{ position: 'sticky', top: '56px', zIndex: 30, background: 'var(--panel)', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ maxWidth: '1120px', margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', gap: '2px', overflowX: 'auto' }}>
+          <nav aria-label="Repository" className="v-tabs" style={{ maxWidth: '1120px', margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', gap: '2px', overflowX: 'auto' }}>
             {repoTabs.map((t) => (
               <Link 
                 key={t.key} 
                 to={t.to} 
+                aria-current={t.on ? 'page' : undefined}
                 style={{ 
                   display: 'inline-flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', background: 'none', 
                   border: 'none', borderBottom: `2px solid ${t.on ? 'var(--accent)' : 'transparent'}`, 
@@ -203,11 +204,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ theme, toggleTheme }) => {
                 )}
               </Link>
             ))}
-          </div>
+          </nav>
         </div>
       )}
 
-      <main style={{ flex: 1, maxWidth: '1120px', margin: '0 auto', padding: '24px 24px 90px', width: '100%' }}>
+      <main id="main" tabIndex={-1} style={{ flex: 1, outline: 'none', maxWidth: '1120px', margin: '0 auto', padding: '24px 24px 90px', width: '100%' }}>
         <Outlet />
       </main>
     </div>
