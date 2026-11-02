@@ -24,7 +24,7 @@ export const routes = {
   // `ref` is a branch or commit; empty means the default branch and adds nothing.
   tree: (repo: string, path = '', ref = '') => `/r/${r(repo)}/tree${path ? '/' + encPath(path) : ''}${refQ(ref)}`,
   blob: (repo: string, path: string, ref = '') => `/r/${r(repo)}/blob/${encPath(path)}${refQ(ref)}`,
-  commits: (repo: string) => `/r/${r(repo)}/commits`,
+  commits: (repo: string, path = '') => `/r/${r(repo)}/commits${path ? `?path=${r(path)}` : ''}`,
   commit: (repo: string, id: string) => `/r/${r(repo)}/commit/${r(id)}`,
   search: (repo: string) => `/r/${r(repo)}/search`,
 

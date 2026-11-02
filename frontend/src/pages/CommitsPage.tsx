@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { Sparkles, Bug, BookText, Recycle, FlaskConical, Wrench, Palette, Zap, Package, Cog, Undo2, GitMerge, GitCommit, Copy } from 'lucide-react';
 import { api, short, when, CommitRef, ApiError } from '../api/client';
 import { useToast } from '../hooks/useToast';
@@ -53,6 +53,8 @@ function dayLabel(iso: string): string {
 
 export const CommitsPage: React.FC = () => {
   const { repo = '' } = useParams();
+  const [search] = useSearchParams();
+  const path = search.get('path') || ''; // set when showing one file's history
   usePageTitle('Commits', repo);
   const { copy, showToast } = useToast();
 
@@ -69,7 +71,7 @@ export const CommitsPage: React.FC = () => {
     setLoading(true);
     setError(undefined);
     api
-      .commits(repo, 30, '')
+      .commits(repo, 30, '', path)
       .then((d) => {
         if (alive) {
           setItems(d.commits || []);
@@ -86,12 +88,12 @@ export const CommitsPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [repo]);
+  }, [repo, path]);
 
   const loadMore = async () => {
     setLoadingMore(true);
     try {
-      const d = await api.commits(repo, 30, next);
+      const d = await api.commits(repo, 30, next, path);
       setItems((p) => [...p, ...(d.commits || [])]);
       setNext(d.next || '');
     } catch (e) {
@@ -107,8 +109,15 @@ export const CommitsPage: React.FC = () => {
   return (
     <div style={{ animation: 'v-fade .2s ease', maxWidth: '1020px', margin: '0 auto' }}>
       <h1 style={{ fontSize: '20px', fontWeight: 680, margin: '0 0 20px', letterSpacing: '-0.3px' }}>
-        Commits <span style={{ color: 'var(--faint)', fontWeight: 500, fontSize: '15px' }}>· {items.length}{next ? '+' : ''}</span>
+        {path ? 'History of ' : 'Commits '}
+        {path && <span style={{ fontFamily: 'var(--font-mono)', fontSize: '16px' }}>{path} </span>}
+        <span style={{ color: 'var(--faint)', fontWeight: 500, fontSize: '15px' }}>· {items.length}{next ? '+' : ''}</span>
       </h1>
+      {path && (
+        <p style={{ margin: '-12px 0 20px' }}>
+          <Link to={routes.commits(repo)} style={{ color: 'var(--accent)', fontSize: '13.5px' }}>Show all commits</Link>
+        </p>
+      )}
 
       {items.length === 0 ? (
         <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '14px', padding: '40px', textAlign: 'center', color: 'var(--dim)' }}>No commits.</div>
