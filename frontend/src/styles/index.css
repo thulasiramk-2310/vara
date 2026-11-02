@@ -78,6 +78,38 @@ body {
   }
 }
 
+/* Sign-in: form beside a short description; on a phone only the form remains. */
+.v-auth {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 800px) {
+  .v-auth {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .v-auth-aside {
+    display: none !important;
+  }
+}
+
+/* The repository tab bar scrolls sideways on a narrow screen instead of
+   cutting tabs off, and the header keeps its words on one line. */
+.v-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.v-tabs::-webkit-scrollbar {
+  display: none;
+}
+/* On a phone the header search box is too small to use; the Search tab below
+   does the same job. */
+@media (max-width: 640px) {
+  .v-hdr-search {
+    display: none;
+  }
+}
+
 @keyframes v-spin {
   to {
     transform: rotate(360deg);
@@ -233,6 +265,126 @@ input::placeholder, textarea::placeholder {
 
 @keyframes v-spin {
   to { transform: rotate(360deg); }
+}
+
+/* ---- Foundation: spacing scale, focus, skip link, skeletons ----------------
+   A 4px base scale. New code uses these tokens; existing inline styles migrate
+   to them as pages are touched. */
+:root {
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --content: 1040px;
+  --header-h: 56px;
+}
+
+/* Anchored and focused elements must not hide under the sticky header. */
+html {
+  /* header (56px) + repository tab bar (about 46px) + breathing room */
+  scroll-padding-top: calc(var(--header-h) + 46px + var(--s-4));
+}
+
+/* One visible focus indicator for every keyboard-reachable control. Mouse
+   clicks do not show it; keyboard focus always does. */
+:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+/* Many controls carry an inline `outline: none`, which beats any normal rule.
+   Keyboard focus must stay visible on them, so this one is forced. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent-strong) !important;
+  outline-offset: 2px;
+}
+input:focus-visible,
+textarea:focus-visible {
+  outline-offset: 0;
+}
+
+.v-skip {
+  position: absolute;
+  left: var(--s-4);
+  top: var(--s-2);
+  z-index: 100;
+  padding: var(--s-2) var(--s-4);
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+.v-skip:focus {
+  transform: none;
+}
+
+.v-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skeletons pulse instead of shimmering: calmer, and it reads the same in both
+   themes. Their size is set by the caller so the page does not jump when the
+   real content arrives. */
+@keyframes v-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.v-skel {
+  display: block;
+  background: var(--inset);
+  border-radius: 6px;
+  animation: v-pulse 1.4s ease-in-out infinite;
+}
+
+.v-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 36px;
+  padding: 0 var(--s-4);
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.v-btn:hover {
+  background: var(--hover);
+}
+.v-btn-primary {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+.v-btn-primary:hover {
+  background: var(--text);
+  opacity: 0.88;
+}
+
+.v-link {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {

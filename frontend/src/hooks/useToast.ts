@@ -21,7 +21,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     timeoutRef.current = window.setTimeout(() => {
       setToast(null);
       timeoutRef.current = null;
-    }, 1500);
+    }, 4000);
   };
 
   const copy = (text: string, label?: string) => {
