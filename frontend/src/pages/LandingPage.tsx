@@ -33,13 +33,13 @@ export const LandingPage: React.FC = () => {
         </h1>
 
         <p style={{ position: 'relative', zIndex: 1, fontSize: 'clamp(15px, 1.6vw, 18px)', color: 'var(--dim)', lineHeight: 1.55, maxWidth: '560px', margin: '0 0 26px' }}>
-          Blazing-fast operations, cryptographic integrity, and content-addressed history. Ship code with confidence at any scale.
+          Content-addressed history, verifiable integrity and atomic operations. Self-hosted, with no account required for local work.
         </p>
 
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
           <Link to="/signup" style={{ background: 'var(--accent)', color: 'var(--accent-fg)', borderRadius: '10px', padding: '13px 28px', fontSize: '15px', fontWeight: 650, textDecoration: 'none', boxShadow: '0 8px 24px -6px color-mix(in srgb, var(--accent) 50%, transparent)', transition: 'transform .15s ease' }}
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}>
-            Get Started Free
+            Get started
           </Link>
           <Link to="/dashboard" style={{ background: 'var(--panel)', color: 'var(--text)', border: '1px solid var(--border-strong)', borderRadius: '10px', padding: '13px 24px', fontSize: '15px', fontWeight: 600, textDecoration: 'none', transition: 'border-color .15s ease' }}
             onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--text)'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-strong)'; }}>
@@ -47,10 +47,10 @@ export const LandingPage: React.FC = () => {
           </Link>
         </div>
 
-        <div style={{ position: 'relative', zIndex: 1, marginTop: '28px', background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 16px', display: 'inline-flex', alignItems: 'center', gap: '12px', fontFamily: 'var(--font-mono)', fontSize: '13.5px', boxShadow: 'var(--shadow-md)' }}>
+        <div style={{ position: 'relative', zIndex: 1, marginTop: '28px', background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 16px', display: 'inline-flex', alignItems: 'center', gap: '12px', fontFamily: 'var(--font-mono)', fontSize: '13.5px', boxShadow: 'var(--shadow-md)', maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box' }}>
           <span style={{ color: 'var(--dim)' }}>$</span>
-          <span style={{ color: 'var(--text)' }}>curl -sL https://get.vara.dev | bash</span>
-          <button onClick={() => copy('curl -sL https://get.vara.dev | bash')} style={{ background: 'var(--inset)', color: 'var(--dim)', border: '1px solid var(--border)', borderRadius: '6px', padding: '3px 9px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+          <span style={{ color: 'var(--text)', overflowWrap: 'anywhere', minWidth: 0 }}>curl -fsSL https://raw.githubusercontent.com/thulasiramk-2310/vara/main/scripts/install.sh | sh</span>
+          <button onClick={() => copy('curl -fsSL https://raw.githubusercontent.com/thulasiramk-2310/vara/main/scripts/install.sh | sh')} style={{ background: 'var(--inset)', color: 'var(--dim)', border: '1px solid var(--border)', borderRadius: '6px', padding: '3px 9px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
             Copy
           </button>
         </div>
@@ -70,14 +70,14 @@ export const LandingPage: React.FC = () => {
       {/* Features */}
       <section style={{ maxWidth: '1120px', margin: '0 auto 52px', padding: '0 24px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <h2 style={{ fontSize: '28px', fontWeight: 700, letterSpacing: '-.6px', margin: '0 0 10px' }}>Everything you need to ship with confidence</h2>
+          <h2 style={{ fontSize: '28px', fontWeight: 700, letterSpacing: '-.6px', margin: '0 0 10px' }}>What VARA gives you</h2>
           <p style={{ color: 'var(--dim)', fontSize: '15px', margin: 0 }}>Built from the ground up for modern development workflows.</p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
           {[
-            { icon: 'lightning' as const, color: 'var(--accent)', title: 'Blazing Fast', desc: 'Instant diffs and operations across repos of any size. No waiting, no slowdowns.' },
-            { icon: 'shield' as const, color: 'var(--green)', title: 'Cryptographic Integrity', desc: 'Every change is verified and tamper-proof. Your history is always trustworthy.' },
-            { icon: 'users' as const, color: 'var(--purple)', title: 'Built for Teams', desc: 'Branches, merges, and review — all built in. Collaborate without friction.' },
+            { icon: 'lightning' as const, color: 'var(--accent)', title: 'Content-addressed', desc: 'Every object is stored under its own SHA-256 address, so identical content is stored once.' },
+            { icon: 'shield' as const, color: 'var(--green)', title: 'Verifiable', desc: 'vara verify re-hashes every object and reports any that no longer match.' },
+            { icon: 'users' as const, color: 'var(--purple)', title: 'Branches and merges', desc: 'Branch, merge and undo from the command line. Review tools are planned for v0.5.' },
           ].map((feat) => (
             <div key={feat.title} style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '16px', padding: '26px 24px', transition: 'transform .2s ease, box-shadow .2s ease' }}
               onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-lg)'; }}
@@ -94,11 +94,11 @@ export const LandingPage: React.FC = () => {
 
       {/* Bottom CTA */}
       <section style={{ background: 'radial-gradient(circle at 50% 100%, color-mix(in srgb, var(--accent) 14%, var(--panel)), var(--panel))', border: '1px solid var(--border)', borderRadius: '20px', padding: '44px 32px', textAlign: 'center', margin: '0 0 40px', boxShadow: 'var(--shadow-lg)' }}>
-        <h2 style={{ fontSize: '30px', fontWeight: 750, letterSpacing: '-.8px', margin: '0 0 12px' }}>Ready to ship faster?</h2>
-        <p style={{ color: 'var(--dim)', fontSize: '15px', maxWidth: '460px', margin: '0 auto 24px' }}>Join thousands of developers building with confidence.</p>
+        <h2 style={{ fontSize: '30px', fontWeight: 750, letterSpacing: '-.8px', margin: '0 0 12px' }}>Ready to try it?</h2>
+        <p style={{ color: 'var(--dim)', fontSize: '15px', maxWidth: '460px', margin: '0 auto 24px' }}>Host your own Hub and keep your history on your own server.</p>
         <Link to="/signup" style={{ display: 'inline-block', background: 'linear-gradient(135deg, var(--accent), var(--purple))', color: '#fff', textDecoration: 'none', borderRadius: '10px', padding: '14px 32px', fontSize: '15px', fontWeight: 650, boxShadow: '0 8px 24px -6px color-mix(in srgb, var(--accent) 50%, transparent)', transition: 'transform .15s ease' }}
           onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}>
-          Create Free Account
+          Create an account
         </Link>
       </section>
 
@@ -106,7 +106,7 @@ export const LandingPage: React.FC = () => {
       <footer style={{ borderTop: '1px solid var(--border)', paddingTop: '28px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '24px', color: 'var(--dim)', fontSize: '13px' }}>
         <div style={{ display: 'grid', gap: '8px', maxWidth: '280px' }}>
           <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--text)' }}>VARA</span>
-          <span>Content-addressed version control for speed, security, and scale.</span>
+          <span>Content-addressed version control, self-hosted.</span>
           <span style={{ color: 'var(--faint)' }}>© {new Date().getFullYear()} VARA</span>
         </div>
         <div style={{ display: 'flex', gap: '48px', flexWrap: 'wrap' }}>
