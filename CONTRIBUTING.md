@@ -53,6 +53,40 @@ cmd/vara → commands → transaction → locking → repository
 
 ---
 
+## The Hub UI (`frontend/`)
+
+The Hub's web interface is a React 19, TypeScript and Vite single-page app that renders
+the read API (`/_vara/*`). It is a thin adapter over a frozen engine, so these rules
+apply to every change under `frontend/`:
+
+- **Do not touch the engine for the UI.** Never change `pkg/*` or `internal/transport`
+  to suit the frontend; add what the UI needs above them.
+- **Repository content is untrusted.** Blob, tree, diff and search text is data from
+  anyone who can push. Never use `dangerouslySetInnerHTML` for it; rely on React's
+  escaping, and build DOM nodes (not HTML strings) for highlighting.
+- **Repositories are addressed by name only** (`/r/:repo`). Owner and organisation
+  namespaces are deferred (RFC-0019 §14), so there is no `:owner` route segment.
+- **Self-contained.** No CDN, no web fonts, no external scripts or stylesheets. Fonts
+  come from the `--font-sans` and `--font-mono` tokens; assets live in `public/`.
+- **Colour.** The accent is teal (`--accent`), the secondary is blue, and the
+  contribution heatmap uses the Git-green scale. Keep new colours out of the violet and
+  purple range.
+- **Routing uses `BrowserRouter`.** Deep links already work because the server
+  (`internal/server/static.go`) serves `index.html` for unknown paths.
+- **Placeholders stay labelled.** As of v0.4.4, Pull Requests, Issues, Notifications,
+  Organizations, profile ownership and Settings are placeholders. Do not present them
+  as working features.
+
+Build and check:
+
+```bash
+sh scripts/build-hub-ui.sh        # runs npm ci and the production build into ./hub-ui
+cd frontend && npx tsc --noEmit   # must report no errors
+vara serve --hub ./hub-ui ...     # see docs/DEPLOYMENT.md for the full command
+```
+
+---
+
 ## Running Tests
 
 ```sh
