@@ -202,7 +202,7 @@ func HandlerWithOptions(root string, opts Options) http.Handler {
 	if opts.HubDir != "" {
 		mux.Handle("GET /", staticHandler(opts.HubDir))
 	}
-	return mux
+	return withMiddleware(mux)
 }
 
 // handleListRefs: GET /:repo/info/refs (RFC-0016 §5.1). Requires `read`.
