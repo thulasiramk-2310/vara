@@ -279,7 +279,10 @@ input::placeholder, textarea::placeholder {
   --s-6: 32px;
   --s-7: 48px;
   --s-8: 64px;
-  --content: 1040px;
+  /* The widest the page content grows. Wider screens keep this width centred;
+     narrower ones use all of theirs. */
+  --page-max: 1680px;
+  --content: var(--page-max);
   --header-h: 56px;
 }
 

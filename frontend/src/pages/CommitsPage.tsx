@@ -103,11 +103,11 @@ export const CommitsPage: React.FC = () => {
     }
   };
 
-  if (loading) return <div style={{ maxWidth: '1020px', margin: '0 auto' }}><Loading /></div>;
-  if (error) return <div style={{ maxWidth: '1020px', margin: '0 auto' }}><ErrorState error={error} /></div>;
+  if (loading) return <div><Loading /></div>;
+  if (error) return <div><ErrorState error={error} /></div>;
 
   return (
-    <div style={{ animation: 'v-fade .2s ease', maxWidth: '1020px', margin: '0 auto' }}>
+    <div style={{ animation: 'v-fade .2s ease', }}>
       <h1 style={{ fontSize: '20px', fontWeight: 680, margin: '0 0 20px', letterSpacing: '-0.3px' }}>
         {path ? 'History of ' : 'Commits '}
         {path && <span style={{ fontFamily: 'var(--font-mono)', fontSize: '16px' }}>{path} </span>}

@@ -93,7 +93,7 @@ export const SearchPage: React.FC = () => {
   const truncated = (result as { truncated?: boolean } | undefined)?.truncated;
 
   return (
-    <div style={{ animation: 'v-fade .2s ease', display: 'flex', flexDirection: 'column', gap: '14px', maxWidth: '1020px', margin: '0 auto' }}>
+    <div style={{ animation: 'v-fade .2s ease', display: 'flex', flexDirection: 'column', gap: '14px', margin: '0 auto' }}>
       <form
         onSubmit={(e) => { e.preventDefault(); submit(input, mode); }}
         style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '10px', padding: '4px 4px 4px 14px', boxShadow: 'var(--shadow)' }}

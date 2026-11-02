@@ -62,7 +62,7 @@ const fmt = (line = ''): React.ReactNode => {
 };
 
 const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' };
-const wrap: React.CSSProperties = { maxWidth: '1040px', margin: '0 auto', padding: '0 24px' };
+const wrap: React.CSSProperties = { maxWidth: '1240px', margin: '0 auto', padding: '0 24px' };
 const rule = '1px solid var(--border-strong)';
 
 export const LandingPage: React.FC = () => {

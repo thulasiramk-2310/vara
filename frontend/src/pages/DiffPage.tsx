@@ -134,7 +134,7 @@ export const DiffPage: React.FC = () => {
   const base = summary.data?.base_commit || '';
 
   return (
-    <div style={{ animation: 'v-fade .2s ease', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '1020px', margin: '0 auto' }}>
+    <div style={{ animation: 'v-fade .2s ease', display: 'flex', flexDirection: 'column', gap: '16px', margin: '0 auto' }}>
       <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px 18px', boxShadow: 'var(--shadow)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
           <span style={{ fontWeight: 600, fontSize: '15px' }}>{detail.data?.message.split('\n')[0]}</span>

@@ -182,7 +182,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ theme, toggleTheme }) => {
 
       {inRepo && (
         <div style={{ position: 'sticky', top: '56px', zIndex: 30, background: 'var(--panel)', borderBottom: '1px solid var(--border)' }}>
-          <nav aria-label="Repository" className="v-tabs" style={{ maxWidth: '1120px', margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', gap: '2px', overflowX: 'auto' }}>
+          <nav aria-label="Repository" className="v-tabs" style={{ maxWidth: 'var(--page-max)', margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', gap: '2px', overflowX: 'auto' }}>
             {repoTabs.map((t) => (
               <Link 
                 key={t.key} 
@@ -208,7 +208,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ theme, toggleTheme }) => {
         </div>
       )}
 
-      <main id="main" tabIndex={-1} style={{ flex: 1, outline: 'none', maxWidth: '1120px', margin: '0 auto', padding: '24px 24px 90px', width: '100%' }}>
+      <main id="main" tabIndex={-1} style={{ flex: 1, outline: 'none', maxWidth: 'var(--page-max)', margin: '0 auto', padding: '24px 24px 90px', width: '100%' }}>
         <Outlet />
       </main>
     </div>

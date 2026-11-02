@@ -70,7 +70,7 @@ export const BlobPage: React.FC = () => {
   })();
 
   return (
-    <div style={{ animation: 'v-fade .2s ease', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '1020px', margin: '0 auto' }}>
+    <div style={{ animation: 'v-fade .2s ease', display: 'flex', flexDirection: 'column', gap: '16px', margin: '0 auto' }}>
       <BranchSwitcher repo={repo} to={(r) => routes.blob(repo, path, r)} />
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', fontFamily: 'var(--font-mono)', fontSize: '13.5px' }}>
         {crumb.map((c, i) => (
