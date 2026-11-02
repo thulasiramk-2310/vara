@@ -1,3 +1,6 @@
+import { z } from 'zod';
+import * as sc from './schemas';
+
 // A thin, typed client over the VARA Hub read API (RFC-0021/0022/0023/0024).
 // Every call is same-origin (the httpOnly session cookie rides automatically),
 // returns parsed JSON, and throws an ApiError on a non-2xx response. It talks
@@ -7,12 +10,14 @@
 export interface ApiError extends Error {
   status: number;
   code?: string;
+  requestId?: string; // the server's X-Request-Id, quoted when reporting a failure
 }
 
-function apiError(message: string, status: number, code?: string): ApiError {
+function apiError(message: string, status: number, code?: string, requestId?: string): ApiError {
   const e = new Error(message) as ApiError;
   e.status = status;
   e.code = code;
+  e.requestId = requestId;
   return e;
 }
 
@@ -27,7 +32,9 @@ export const encPath = (p: string): string =>
 
 const enc = encodeURIComponent;
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+// request sends one call. When a `schema` is given the response is checked
+// against it (see schemas.ts) before any page sees it.
+async function request<T>(method: string, path: string, body?: unknown, schema?: z.ZodTypeAny): Promise<T> {
   const opts: RequestInit = { method, headers: {} };
   if (body !== undefined) {
     (opts.headers as Record<string, string>)['Content-Type'] = 'application/json';
@@ -40,6 +47,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     // fetch rejects only when no response arrived at all: offline, DNS, refused.
     throw apiError('Cannot reach the server.', 0, 'NETWORK');
   }
+  const requestId = resp.headers.get('X-Request-Id') || undefined;
   if (resp.status === 204) return null as unknown as T;
 
   const text = await resp.text();
@@ -59,10 +67,19 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   if (!resp.ok) {
     const d = data as { message?: string; code?: string } | null;
-    throw apiError((d && d.message) || resp.statusText || `HTTP ${resp.status}`, resp.status, d?.code);
+    throw apiError((d && d.message) || resp.statusText || `HTTP ${resp.status}`, resp.status, d?.code, requestId);
   }
   if (data === null && text && !ct.includes('json')) {
-    throw apiError("This feature isn't enabled on this server.", 0, 'UNAVAILABLE');
+    throw apiError("This feature isn't enabled on this server.", 0, 'UNAVAILABLE', requestId);
+  }
+  if (schema) {
+    const checked = schema.safeParse(data);
+    if (!checked.success) {
+      // The details go to the console for whoever is debugging; the reader gets a plain message.
+      console.error(`Unexpected response from ${method} ${path}:`, checked.error.issues);
+      throw apiError('The server sent a response this page does not understand.', 0, 'BAD_RESPONSE', requestId);
+    }
+    return checked.data as T;
   }
   return data as T;
 }
@@ -201,30 +218,30 @@ const refQuery = (ref: string) => (ref ? `?ref=${enc(ref)}` : '');
 const base = (repo: string) => `/_vara/repositories/${enc(repo)}`;
 
 export const api = {
-  whoami: () => request<Whoami>('GET', '/_vara/whoami'),
+  whoami: () => request<Whoami>('GET', '/_vara/whoami', undefined, sc.whoami),
 
   // Cookie mode (RFC-0021 §7): the server sets an httpOnly session cookie and
   // withholds the secret from the body, so page JS never touches it. The body is
   // just { expires_at }; call whoami() afterward to learn the resolved identity.
   login: (username: string, password: string) =>
-    request<LoginResponse>('POST', '/_vara/sessions?cookie=1', { username, password }),
+    request<LoginResponse>('POST', '/_vara/sessions?cookie=1', { username, password }, sc.loginResponse),
 
   logout: () => request<null>('DELETE', '/_vara/sessions/current'),
 
-  listRepos: () => request<{ repositories: RepoListItem[] }>('GET', '/_vara/repositories'),
+  listRepos: () => request<{ repositories: RepoListItem[] }>('GET', '/_vara/repositories', undefined, sc.repoList),
 
   createRepo: (name: string) => request<unknown>('POST', '/_vara/repositories', { name }),
 
-  summary: (repo: string) => request<RepoSummary>('GET', `${base(repo)}/summary`),
+  summary: (repo: string) => request<RepoSummary>('GET', `${base(repo)}/summary`, undefined, sc.repoSummary),
 
-  branches: (repo: string) => request<BranchesResponse>('GET', `${base(repo)}/branches`),
+  branches: (repo: string) => request<BranchesResponse>('GET', `${base(repo)}/branches`, undefined, sc.branchesResponse),
 
   // `ref` is a branch name or commit id; omitted, the server uses the default branch.
   tree: (repo: string, path: string, ref = '') =>
-    request<TreeResponse>('GET', `${base(repo)}/tree/${encPath(path)}${refQuery(ref)}`),
+    request<TreeResponse>('GET', `${base(repo)}/tree/${encPath(path)}${refQuery(ref)}`, undefined, sc.treeResponse),
 
   blob: (repo: string, path: string, ref = '') =>
-    request<BlobResponse>('GET', `${base(repo)}/blob/${encPath(path)}${refQuery(ref)}`),
+    request<BlobResponse>('GET', `${base(repo)}/blob/${encPath(path)}${refQuery(ref)}`, undefined, sc.blobResponse),
 
   rawUrl: (repo: string, path: string, ref = '') => `${base(repo)}/raw/${encPath(path)}${refQuery(ref)}`,
 
@@ -232,28 +249,32 @@ export const api = {
     request<CommitsResponse>(
       'GET',
       `${base(repo)}/commits?limit=${limit}${before ? `&before=${enc(before)}` : ''}`,
+      undefined,
+      sc.commitsResponse,
     ),
 
   commit: (repo: string, id: string) =>
-    request<CommitRef>('GET', `${base(repo)}/commits/${enc(id)}`),
+    request<CommitRef>('GET', `${base(repo)}/commits/${enc(id)}`, undefined, sc.commitRef),
 
   commitDiff: (repo: string, id: string) =>
-    request<CommitDiffSummary>('GET', `${base(repo)}/commits/${enc(id)}/diff`),
+    request<CommitDiffSummary>('GET', `${base(repo)}/commits/${enc(id)}/diff`, undefined, sc.commitDiffSummary),
 
   fileDiff: (repo: string, path: string, head: string, base_: string) =>
     request<FileDiffResponse>(
       'GET',
       `${base(repo)}/diff/${encPath(path)}?head=${enc(head)}&base=${enc(base_)}`,
+      undefined,
+      sc.fileDiffResponse,
     ),
 
   searchContent: (repo: string, q: string) =>
-    request<ContentSearchResponse>('GET', `${base(repo)}/search/content?q=${enc(q)}`),
+    request<ContentSearchResponse>('GET', `${base(repo)}/search/content?q=${enc(q)}`, undefined, sc.contentSearchResponse),
 
   searchPaths: (repo: string, q: string) =>
-    request<PathSearchResponse>('GET', `${base(repo)}/search/paths?q=${enc(q)}`),
+    request<PathSearchResponse>('GET', `${base(repo)}/search/paths?q=${enc(q)}`, undefined, sc.pathSearchResponse),
 
   searchCommits: (repo: string, q: string) =>
-    request<CommitSearchResponse>('GET', `${base(repo)}/search/commits?q=${enc(q)}`),
+    request<CommitSearchResponse>('GET', `${base(repo)}/search/commits?q=${enc(q)}`, undefined, sc.commitSearchResponse),
 };
 
 // short truncates an object id for display; the full id stays available to copy.

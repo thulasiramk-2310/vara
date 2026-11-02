@@ -67,6 +67,9 @@ function describe(error: ApiError): { title: string; detail: string; kind: 'auth
   if (error.code === 'UNAVAILABLE') {
     return { title: 'Not enabled', detail: error.message, kind: 'none' };
   }
+  if (error.code === 'BAD_RESPONSE') {
+    return { title: 'Unexpected response', detail: error.message, kind: 'retry' };
+  }
   if (error.code === 'NETWORK') {
     return { title: 'Cannot reach the server', detail: 'Check your connection, then try again.', kind: 'retry' };
   }
@@ -95,9 +98,9 @@ export const ErrorState: React.FC<{ error: ApiError; onRetry?: () => void }> = (
     >
       <div style={{ fontSize: '16px', fontWeight: 650, marginBottom: 'var(--s-1)' }}>{title}</div>
       <div style={{ color: 'var(--dim)', fontSize: '14px', maxWidth: '560px' }}>{detail}</div>
-      {(error.status > 0 || error.code) && (
+      {(error.status > 0 || error.code || error.requestId) && (
         <div style={{ color: 'var(--faint)', fontFamily: 'var(--font-mono)', fontSize: '12px', marginTop: 'var(--s-2)' }}>
-          {[error.status > 0 ? `HTTP ${error.status}` : '', error.code || ''].filter(Boolean).join(' · ')}
+          {[error.status > 0 ? `HTTP ${error.status}` : '', error.code || '', error.requestId ? `request ${error.requestId}` : ''].filter(Boolean).join(' · ')}
         </div>
       )}
       {kind === 'auth' && (
