@@ -55,6 +55,7 @@ export const CommitsPage: React.FC = () => {
   const { repo = '' } = useParams();
   const [search] = useSearchParams();
   const path = search.get('path') || ''; // set when showing one file's history
+  const ref = search.get('ref') || ''; // the branch being read; empty is the default branch
   usePageTitle('Commits', repo);
   const { copy, showToast } = useToast();
 
@@ -71,7 +72,7 @@ export const CommitsPage: React.FC = () => {
     setLoading(true);
     setError(undefined);
     api
-      .commits(repo, 30, '', path)
+      .commits(repo, 30, '', path, ref)
       .then((d) => {
         if (alive) {
           setItems(d.commits || []);
@@ -88,12 +89,12 @@ export const CommitsPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [repo, path]);
+  }, [repo, path, ref]);
 
   const loadMore = async () => {
     setLoadingMore(true);
     try {
-      const d = await api.commits(repo, 30, next, path);
+      const d = await api.commits(repo, 30, next, path, ref);
       setItems((p) => [...p, ...(d.commits || [])]);
       setNext(d.next || '');
     } catch (e) {
@@ -115,7 +116,7 @@ export const CommitsPage: React.FC = () => {
       </h1>
       {path && (
         <p style={{ margin: '-12px 0 20px' }}>
-          <Link to={routes.commits(repo)} style={{ color: 'var(--accent)', fontSize: '13.5px' }}>Show all commits</Link>
+          <Link to={routes.commits(repo, '', ref)} style={{ color: 'var(--accent)', fontSize: '13.5px' }}>Show all commits</Link>
         </p>
       )}
 

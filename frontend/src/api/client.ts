@@ -246,10 +246,10 @@ export const api = {
   rawUrl: (repo: string, path: string, ref = '') => `${base(repo)}/raw/${encPath(path)}${refQuery(ref)}`,
 
   // `path` limits the list to commits that changed that file or folder (a file's history).
-  commits: (repo: string, limit = 30, before = '', path = '') =>
+  commits: (repo: string, limit = 30, before = '', path = '', ref = '') =>
     request<CommitsResponse>(
       'GET',
-      `${base(repo)}/commits?limit=${limit}${before ? `&before=${enc(before)}` : ''}${path ? `&path=${enc(path)}` : ''}`,
+      `${base(repo)}/commits?limit=${limit}${before ? `&before=${enc(before)}` : ''}${path ? `&path=${enc(path)}` : ''}${ref ? `&ref=${enc(ref)}` : ''}`,
       undefined,
       sc.commitsResponse,
     ),
