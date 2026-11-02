@@ -12,7 +12,7 @@
 [![CI](https://github.com/thulasiramk-2310/vara/actions/workflows/ci.yml/badge.svg)](https://github.com/thulasiramk-2310/vara/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v0.4.0-blue)](https://github.com/thulasiramk-2310/vara/releases/tag/v0.4.0)
+[![Release](https://img.shields.io/github/v/release/thulasiramk-2310/vara?label=release)](https://github.com/thulasiramk-2310/vara/releases/latest)
 [![RFC Status](https://img.shields.io/badge/RFCs-24%20accepted-blue)](docs/)
 
 </div>
@@ -100,7 +100,7 @@ curl -fsSL https://raw.githubusercontent.com/thulasiramk-2310/vara/main/scripts/
 Or do it by hand:
 
 ```sh
-VER=v0.4.0; NUM=${VER#v}
+VER=v0.4.4; NUM=${VER#v}
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')                 # linux | darwin
 ARCH=$(uname -m); case "$ARCH" in x86_64) ARCH=amd64;; aarch64|arm64) ARCH=arm64;; esac
 curl -fsSL -o vara.tar.gz \
@@ -118,7 +118,7 @@ vara --version
 No winget package — download the `.zip`, extract it, and add it to your PATH:
 
 ```powershell
-$ver = "v0.4.0"; $num = $ver.TrimStart('v')
+$ver = "v0.4.4"; $num = $ver.TrimStart('v')
 $dir = "$env:LOCALAPPDATA\Programs\vara"
 Invoke-WebRequest "https://github.com/thulasiramk-2310/vara/releases/download/$ver/vara_${num}_windows_amd64.zip" -OutFile "$env:TEMP\vara.zip"
 Expand-Archive "$env:TEMP\vara.zip" -DestinationPath $dir -Force
