@@ -9,12 +9,14 @@ import { Loading, ErrorState } from '../components/common/States';
 import { ContributionGraph, ActivityFeed } from '../components/common/Contributions';
 import { RepoCard } from '../components/common/RepoCard';
 import { Identicon } from '../components/common/Identicon';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 // ProfilePage shows the signed-in identity (RFC-0020 whoami), the repositories on
 // this server, and a real contribution graph + activity feed derived from commit
 // history. Rich per-user ownership (orgs, followers) lands with v0.5; this is an
 // honest projection of what the read API already answers.
 export const ProfilePage: React.FC = () => {
+  usePageTitle('Profile');
   const me = useAsync<Whoami>(() => api.whoami().catch(() => ({ id: 'anonymous', anonymous: true })), []);
   const repos = useRepoCards();
   const contrib = useContributions();

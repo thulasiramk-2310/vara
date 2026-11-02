@@ -4,6 +4,7 @@ import { api, short, when, FileDiffResponse, DiffFileInfo, ApiError } from '../a
 import { useAsync } from '../hooks/useAsync';
 import { routes } from '../routes';
 import { Loading, ErrorState } from '../components/common/States';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 function statusMeta(s: string): { label: string; bg: string; fg: string } {
   const k = (s || '').toLowerCase();
@@ -114,6 +115,7 @@ const FileRow: React.FC<{ repo: string; id: string; base: string; file: DiffFile
 // each file's unified diff, lazily loaded on expand — all from the real read API.
 export const DiffPage: React.FC = () => {
   const { repo = '', id = '' } = useParams();
+  usePageTitle(`Commit ${id.slice(0, 10)}`, repo);
   const detail = useAsync(() => api.commit(repo, id), [repo, id]);
   const summary = useAsync(() => api.commitDiff(repo, id), [repo, id]);
 

@@ -4,11 +4,13 @@ import { Lock, Globe, Check, Loader2 } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 // NewRepoPage creates a real repository via the RFC-0019 control plane
 // (POST /_vara/repositories). v0.4 repositories are private by design; the
 // visibility control is shown for intent but the server keeps new repos private.
 export const NewRepoPage: React.FC = () => {
+  usePageTitle('New repository');
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { me, authed } = useAuth();

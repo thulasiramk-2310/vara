@@ -1,5 +1,6 @@
 import React from 'react';
 import { DevIcon } from './DevIcon';
+import { usePageTitle } from '../../hooks/usePageTitle';
 
 interface StubPageProps {
   // Either `title` (global stubs) or `section` (repo-scoped stubs) names the page.
@@ -15,6 +16,7 @@ interface StubPageProps {
 // data, a clear "planned" badge, and a pointer to what the v0.4 backend does serve.
 export const StubPage: React.FC<StubPageProps> = ({ title, section, icon = 'projects', blurb }) => {
   const heading = title || section || 'Coming soon';
+  usePageTitle(heading);
   const text =
     blurb ||
     `${heading} is part of the v0.5 collaboration layer — designed here, but not yet backed by the engine.`;

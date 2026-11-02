@@ -6,6 +6,7 @@ import { useToast } from '../hooks/useToast';
 import { routes } from '../routes';
 import { Loading, ErrorState } from '../components/common/States';
 import { Identicon } from '../components/common/Identicon';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 // Conventional-commit type → a Lucide icon + label. Colours stay neutral (the icon
 // conveys the type); the author identicon carries the per-person colour.
@@ -52,6 +53,7 @@ function dayLabel(iso: string): string {
 
 export const CommitsPage: React.FC = () => {
   const { repo = '' } = useParams();
+  usePageTitle('Commits', repo);
   const { copy, showToast } = useToast();
 
   const [items, setItems] = useState<CommitRef[]>([]);

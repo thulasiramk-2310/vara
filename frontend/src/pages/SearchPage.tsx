@@ -12,6 +12,7 @@ import {
 import { segmentText } from '../utils/highlight';
 import { routes } from '../routes';
 import { Loading, ErrorState } from '../components/common/States';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 type Mode = 'content' | 'paths' | 'commits';
 const MODES: Mode[] = ['content', 'paths', 'commits'];
@@ -36,6 +37,7 @@ type Result = ContentSearchResponse | PathSearchResponse | CommitSearchResponse;
 // live in the URL (?q=&mode=), so a search is shareable and survives a refresh.
 export const SearchPage: React.FC = () => {
   const { repo = '' } = useParams();
+  usePageTitle('Search', repo);
   const [sp, setSp] = useSearchParams();
 
   const mode: Mode = MODES.includes(sp.get('mode') as Mode) ? (sp.get('mode') as Mode) : 'content';

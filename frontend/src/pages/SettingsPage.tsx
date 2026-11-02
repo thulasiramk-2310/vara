@@ -1,5 +1,6 @@
 import React from 'react';
 import { User, Shield, Bell, Palette, Check } from 'lucide-react';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 // SettingsPage is a professional "under active development" workspace, not an empty
 // placeholder. Every control is rendered realistically but disabled with a subtle
@@ -61,7 +62,9 @@ const Segmented: React.FC<{ options: string[]; active?: number }> = ({ options, 
 const SHIPPED = ['Repository management', 'Authentication', 'Search', 'Diff viewer', 'Commits', 'Clone / Push / Fetch'];
 const NEXT = ['Organizations', 'Teams', 'Repository permissions', 'Collaboration', 'Notifications'];
 
-export const SettingsPage: React.FC = () => (
+export const SettingsPage: React.FC = () => {
+  usePageTitle('Settings');
+  return (
   <div style={{ animation: 'v-fade .2s ease', display: 'grid', gap: '22px', minWidth: 0 }}>
     {/* Header */}
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
@@ -152,4 +155,5 @@ export const SettingsPage: React.FC = () => (
       </aside>
     </div>
   </div>
-);
+  );
+};

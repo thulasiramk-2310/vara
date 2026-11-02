@@ -2,8 +2,10 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthLayout } from '../layouts/AuthLayout';
 import { useAuth } from '../hooks/useAuth';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export const LogoutPage: React.FC = () => {
+  usePageTitle('Signed out');
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [clearing, setClearing] = useState(true);

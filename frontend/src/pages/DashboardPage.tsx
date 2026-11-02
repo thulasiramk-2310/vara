@@ -6,11 +6,13 @@ import { routes } from '../routes';
 import { Loading, ErrorState } from '../components/common/States';
 import { ContributionGraph, ActivityFeed } from '../components/common/Contributions';
 import { RepoCard } from '../components/common/RepoCard';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 // DashboardPage lists the repositories this server exposes (RFC-0021), addressed
 // by name — no owner namespace. Repository cards, the contribution graph, and the
 // activity feed are all derived from real read-API data.
 export const DashboardPage: React.FC = () => {
+  usePageTitle('Repositories');
   const repos = useRepoCards();
   const contrib = useContributions();
 
