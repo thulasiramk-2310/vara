@@ -146,6 +146,9 @@ func RunRepo(args []string, cfg RepoConfig) error {
 			return err
 		}
 		fmt.Printf("created %s (id=%s, owner=%s)\n", d.Name, d.ID, d.Owner)
+		if d.Visibility == "public" {
+			fmt.Print(publicVisibilityNote)
+		}
 		return nil
 
 	case "show":
@@ -185,3 +188,11 @@ func RunRepo(args []string, cfg RepoConfig) error {
 		return fmt.Errorf("repo: unknown subcommand %q (want create|delete|rename|list|show)", sub)
 	}
 }
+
+// publicVisibilityNote is shown when a repository is created as public. The label is
+// recorded and listed, but it does not change who may read: access is decided only by
+// the policy file, so an anonymous visitor is still refused until the policy says
+// otherwise. Saying so at creation avoids the surprise later.
+const publicVisibilityNote = "note: 'public' is recorded, but it does not yet let anonymous visitors read this repository.\n" +
+	"      Access is decided by the policy file; to allow anonymous reading, grant 'read' to\n" +
+	"      the subject 'anonymous' in the repository's policy.\n"

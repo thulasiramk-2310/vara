@@ -53,7 +53,9 @@ export const RepoCard: React.FC<{ repo: ListedRepo }> = ({ repo: listed }) => {
           {repo.name}
         </span>
         <span style={{ flex: 1 }} />
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: 600, color: t.sub, border: '1px solid currentColor', borderRadius: '20px', padding: '2px 9px', opacity: 0.85 }}>
+        <span
+          title={isPrivate ? 'Only accounts with access can read this repository.' : 'Marked public. This label does not yet allow anonymous reading; access follows the server policy.'}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: 600, color: t.sub, border: '1px solid currentColor', borderRadius: '20px', padding: '2px 9px', opacity: 0.85 }}>
           {isPrivate ? <Lock size={11} /> : <Globe size={11} />}
           {isPrivate ? 'Private' : 'Public'}
         </span>
