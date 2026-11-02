@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -230,10 +231,13 @@ func main() {
 	case "verify":
 		ctx := mustCtx(false)
 		out, err := commands.RunVerify(ctx)
+		fmt.Print(out)
+		if errors.Is(err, commands.ErrCorruption) {
+			os.Exit(1) // the report above already says what is wrong
+		}
 		if err != nil {
 			die("verify: %v", err)
 		}
-		fmt.Print(out)
 
 	case "remote":
 		ctx := mustCtx(false)

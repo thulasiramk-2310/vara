@@ -1,19 +1,30 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/thulasiramk-2310/vara/pkg/verify"
 )
 
-// RunVerify executes `vara verify` and returns a human-readable integrity report.
+// ErrCorruption is returned with the report when verify finds a damaged repository, so that
+// callers can print the report and still exit non-zero: a health check that exits 0 on a
+// corrupted repository is worse than none.
+var ErrCorruption = errors.New("repository is corrupted")
+
+// RunVerify executes `vara verify` and returns a human-readable integrity report. When the
+// repository is damaged the report is returned together with ErrCorruption.
 func RunVerify(ctx *Context) (string, error) {
 	report, err := verify.Verify(ctx.Repository.VaraDir)
 	if err != nil {
 		return "", fmt.Errorf("verify: %w", err)
 	}
-	return formatReport(report), nil
+	out := formatReport(report)
+	if !report.Healthy {
+		return out, ErrCorruption
+	}
+	return out, nil
 }
 
 func formatReport(r verify.Report) string {
@@ -40,7 +51,10 @@ func formatReport(r verify.Report) string {
 }
 
 func writeCategory(sb *strings.Builder, name string, c verify.CategoryResult) {
-	if len(c.Errors) == 0 {
+	if len(c.Errors) == 0 && c.Verified == 0 {
+		// Nothing was in this category, so nothing was checked: do not tick it.
+		sb.WriteString(fmt.Sprintf("%-12s - nothing to check\n", name))
+	} else if len(c.Errors) == 0 {
 		sb.WriteString(fmt.Sprintf("%-12s ✔ %d verified\n", name, c.Verified))
 	} else {
 		sb.WriteString(fmt.Sprintf("%-12s ✘ %d verified, %d error(s)\n", name, c.Verified, len(c.Errors)))
