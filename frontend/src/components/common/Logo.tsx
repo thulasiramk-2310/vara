@@ -1,31 +1,18 @@
 import React from 'react';
 
-// The VARA HUB mark: a hexagon enclosing a branch graph — two arms converging
-// into a stem (the "Y"), with a short branch out to a commit node. The hexagon
-// and graph inherit currentColor (so the mark works on any background, light or
-// dark); only the commit node is brand red (--brand-red). This is the Hub's
-// identity — distinct from the VARA core-engine "V" mark.
+// The VARA mark ("the Fold"): two ivory ribbons folding into a hexagon around a
+// void. This is the single-colour form of the brand artwork supplied for VARA (see
+// docs/assets/brand/vara-fold-monochrome.svg), drawn in currentColor so it follows
+// the theme: dark ink on the light theme, ivory on the dark theme. The two inner
+// faces are the same colour at half strength, which keeps the fold readable down to
+// about 16 px. The full-colour icon is used where there is a dark tile behind it
+// (the browser tab icon, public/favicon.svg).
 export const Logo: React.FC<{ size?: number; title?: string }> = ({ size = 24, title }) => (
-  <svg width={size} height={size} viewBox="0 0 32 32" fill="none" role="img" aria-label={title || 'VARA HUB'}>
+  <svg width={size} height={size} viewBox="60 15 870 950" role="img" aria-label={title || 'VARA HUB'}>
     {title ? <title>{title}</title> : null}
-    {/* Hexagon shell (flat top/bottom, pointed sides) */}
-    <path
-      d="M9.75 5.2 L22.25 5.2 L28.5 16 L22.25 26.8 L9.75 26.8 L3.5 16 Z"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinejoin="round"
-    />
-    {/* Branch graph: two arms → stem (the "Y") */}
-    <path
-      d="M11 11 L16 16.6 L21 11 M16 16.6 V22.6"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    {/* Short branch out to the commit node */}
-    <path d="M16 18.6 L20.2 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    {/* The commit node — the one brand-red accent */}
-    <circle cx="20.7" cy="21.3" r="2.4" fill="var(--brand-red)" />
+    <path d="M 145 446 Q 145 410 185 380 L 516 112 Q 576 63 607 119 L 607 254 Q 605 292 567 321 L 199 581 Q 145 619 145 663 Z" fill="currentColor" />
+    <path d="M 838 362 Q 850 376 850 405 L 850 550 Q 850 593 806 626 L 493 858 Q 413 921 413 840 L 413 670 Q 413 626 457 594 L 802 402 Q 838 379 838 362 Z" fill="currentColor" />
+    <path d="M 615 128 L 806 294 Q 847 329 835 367 Q 818 405 646 508 Q 653 374 575 334 Q 616 285 615 244 Z" fill="currentColor" opacity={0.5} />
+    <path d="M 150 634 Q 146 663 191 695 L 399 866 Q 410 880 426 883 Q 401 844 399 738 Q 370 655 382 489 L 196 572 Q 150 607 150 634 Z" fill="currentColor" opacity={0.5} />
   </svg>
 );
