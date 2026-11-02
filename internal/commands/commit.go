@@ -15,6 +15,7 @@ import (
 	"github.com/thulasiramk-2310/vara/pkg/index"
 	"github.com/thulasiramk-2310/vara/pkg/object"
 	"github.com/thulasiramk-2310/vara/pkg/recovery"
+	"github.com/thulasiramk-2310/vara/pkg/refs"
 	"github.com/thulasiramk-2310/vara/pkg/types"
 )
 
@@ -145,25 +146,27 @@ func RunCommitWith(ctx *Context, message string, opts CommitOptions) (types.Comm
 		return types.CommitID{}, fmt.Errorf("failed to build commit: %v", err)
 	}
 
-	// 4. Update HEAD or the branch it points to
-	if err == nil && len(headData) > 0 {
-		headContent := strings.TrimSpace(string(headData))
-		if strings.HasPrefix(headContent, "ref: ") {
-			refPath := strings.TrimPrefix(headContent, "ref: ")
-			fullRefPath := filepath.Join(ctx.Repository.VaraDir, filepath.FromSlash(refPath))
-			os.MkdirAll(filepath.Dir(fullRefPath), 0755)
-			os.WriteFile(fullRefPath, []byte(commitID.String()+"\n"), 0644)
-		} else {
-			// Detached HEAD
-			os.WriteFile(headPath, []byte(commitID.String()+"\n"), 0644)
+	// 4. Move HEAD's branch (or HEAD itself when detached) to the new commit, through the
+	// reference updater: lock file, flush, atomic rename (RFC-0004 §4). A failure is an error,
+	// never a success message over a branch that did not move.
+	resolver := refs.NewFSResolver(ctx.Repository.VaraDir)
+	if len(headData) > 0 {
+		// Update follows a symbolic HEAD to its branch, and writes HEAD directly when detached.
+		if uerr := resolver.Update("HEAD", commitID); uerr != nil {
+			return types.CommitID{}, fmt.Errorf("commit %s was recorded but the branch could not be updated: %w",
+				commitID.String()[:7], uerr)
 		}
 	} else {
-		// By default, if HEAD is empty or doesn't exist, we assume it's ref: refs/heads/main
-		refPath := "refs/heads/main"
-		fullRefPath := filepath.Join(ctx.Repository.VaraDir, filepath.FromSlash(refPath))
-		os.MkdirAll(filepath.Dir(fullRefPath), 0755)
-		os.WriteFile(fullRefPath, []byte(commitID.String()+"\n"), 0644)
-		os.WriteFile(headPath, []byte("ref: "+refPath+"\n"), 0644)
+		// No HEAD yet: start on main.
+		const mainRef = "refs/heads/main"
+		if uerr := resolver.Update(mainRef, commitID); uerr != nil {
+			return types.CommitID{}, fmt.Errorf("commit %s was recorded but %s could not be created: %w",
+				commitID.String()[:7], mainRef, uerr)
+		}
+		if uerr := resolver.Symbolic("HEAD", mainRef); uerr != nil {
+			return types.CommitID{}, fmt.Errorf("commit %s was recorded but HEAD could not be set: %w",
+				commitID.String()[:7], uerr)
+		}
 	}
 
 	// 4b. Record the commit in the HEAD reflog, which undo reads (RFC-0009 §6).
@@ -186,8 +189,13 @@ func RunCommitWith(ctx *Context, message string, opts CommitOptions) (types.Comm
 	ctx.Index.Entries = newEntries
 
 	indexPath := filepath.Join(ctx.Repository.VaraDir, "index")
-	idxData, _ := ctx.Index.Serialize()
-	os.WriteFile(indexPath, idxData, 0644)
+	idxData, ierr := ctx.Index.Serialize()
+	if ierr != nil {
+		return types.CommitID{}, fmt.Errorf("commit %s was recorded but the index could not be saved: %w", commitID.String()[:7], ierr)
+	}
+	if werr := atomicWriteFile(indexPath, idxData, 0644); werr != nil {
+		return types.CommitID{}, fmt.Errorf("commit %s was recorded but the index could not be saved: %w", commitID.String()[:7], werr)
+	}
 
 	// Invalidate the graph index — next history traversal will rebuild it.
 	graphindex.Invalidate(ctx.Repository.VaraDir)
