@@ -12,3 +12,11 @@ benchmarks
 tests
 scripts
 *.exe
+
+# The Hub UI is built inside the image from the lock file (see the ui stage in the
+# Dockerfile). A local node_modules or build output must never be copied in over it:
+# it can hold binaries for the wrong platform, and it is hundreds of megabytes.
+frontend/node_modules
+frontend/dist
+frontend/.vite
+hub-ui
