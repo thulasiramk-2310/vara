@@ -67,8 +67,7 @@ const rule = '1px solid var(--border-strong)';
 
 export const LandingPage: React.FC = () => {
   usePageTitle();
-  const { showToast } = useToast();
-  const copy = (text: string) => { navigator.clipboard.writeText(text); showToast('Copied to clipboard'); };
+  const { copy } = useToast();
 
   return (
     <div style={{ animation: 'v-fade .2s ease', overflowX: 'hidden' }}>
@@ -102,7 +101,7 @@ export const LandingPage: React.FC = () => {
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 16px', borderTop: rule, borderBottom: rule, padding: '14px 0', ...mono, fontSize: '13.5px' }}>
           <span style={{ color: 'var(--faint)' }}>install</span>
           <span tabIndex={0} style={{ color: 'var(--text)', whiteSpace: 'nowrap', overflowX: 'auto', minWidth: 0, flex: '1 1 260px', paddingBottom: '2px' }}>{INSTALL}</span>
-          <button onClick={() => copy(INSTALL)} style={{ ...mono, background: 'none', border: 'none', color: 'var(--accent-strong)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: '3px' }}>
+          <button onClick={() => copy(INSTALL, 'Install command')} style={{ ...mono, background: 'none', border: 'none', color: 'var(--accent-strong)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: '3px' }}>
             copy
           </button>
         </div>

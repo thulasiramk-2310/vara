@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef } from 'react';
+import { copyText } from '../utils/clipboard';
 
 interface ToastContextValue {
   toast: string | null;
@@ -25,12 +26,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const copy = (text: string, label?: string) => {
-    try {
-      navigator.clipboard.writeText(text);
-    } catch {
-      // Ignore fallback
-    }
-    showToast(`${label || 'Copied'} to clipboard`);
+    void copyText(text).then((ok) =>
+      showToast(ok ? `${label || 'Copied'} to clipboard` : 'Could not copy. Select the text and copy it by hand.'),
+    );
   };
 
   const noop = () => showToast('Prototype — not wired');
