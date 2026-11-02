@@ -8,6 +8,7 @@ package commands
 
 import (
 	"fmt"
+	"github.com/thulasiramk-2310/vara/internal/fsutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -231,13 +232,5 @@ func collectIndexPaths(idx *index.Index) map[string]bool {
 
 // atomicWriteFile writes content to path using temp-file + rename for crash safety.
 func atomicWriteFile(path string, content []byte, perm os.FileMode) error {
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, content, perm); err != nil {
-		return err
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
-		return err
-	}
-	return nil
+	return fsutil.WriteFile(path+".tmp", path, content, perm)
 }

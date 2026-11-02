@@ -16,6 +16,7 @@ package refs
 
 import (
 	"fmt"
+	"github.com/thulasiramk-2310/vara/internal/fsutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -246,13 +247,5 @@ func (r *FSResolver) List() ([]Reference, error) {
 // atomicWrite writes content to path using the lock-file + rename protocol
 // (RFC-0004 §4 steps 2–4): write to <path>.lock, sync, rename to <path>.
 func atomicWrite(path, content string) error {
-	lockPath := path + ".lock"
-	if err := os.WriteFile(lockPath, []byte(content), 0644); err != nil {
-		return err
-	}
-	if err := os.Rename(lockPath, path); err != nil {
-		os.Remove(lockPath)
-		return err
-	}
-	return nil
+	return fsutil.WriteFile(path+".lock", path, []byte(content), 0644)
 }
