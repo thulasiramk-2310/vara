@@ -1,12 +1,13 @@
 // Benchmarks for command-level operations against the defined performance budgets.
 //
 // Budget targets:
-//   vara init              < 20 ms
-//   vara status (10k)      < 100 ms
-//   vara add (1k files)    < 500 ms
-//   vara commit            < 200 ms
-//   vara switch            < 500 ms
-//   vara history (10k)     < 100 ms
+//
+//	vara init              < 20 ms
+//	vara status (10k)      < 100 ms
+//	vara add (1k files)    < 500 ms
+//	vara commit            < 200 ms
+//	vara switch            < 500 ms
+//	vara history (10k)     < 100 ms
 package commands_bench
 
 import (

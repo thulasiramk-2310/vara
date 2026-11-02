@@ -10,7 +10,7 @@ import (
 
 func TestRepositoryInitAndDiscover(t *testing.T) {
 	tempDir := t.TempDir()
-	
+
 	// Test Init
 	repo, err := repository.Init(tempDir)
 	if err != nil {
@@ -27,7 +27,7 @@ func TestRepositoryInitAndDiscover(t *testing.T) {
 		"journal",
 		"snapshots",
 	}
-	
+
 	for _, dir := range expectedDirs {
 		path := filepath.Join(repo.VaraDir, dir)
 		stat, err := os.Stat(path)
@@ -35,7 +35,7 @@ func TestRepositoryInitAndDiscover(t *testing.T) {
 			t.Errorf("Expected directory %s does not exist", path)
 		}
 	}
-	
+
 	// Verify VERSION
 	version, err := os.ReadFile(filepath.Join(repo.VaraDir, "VERSION"))
 	if err != nil || string(version) != "1\n" {
@@ -51,12 +51,12 @@ func TestRepositoryInitAndDiscover(t *testing.T) {
 	// Test Discover
 	subDir := filepath.Join(tempDir, "some", "nested", "dir")
 	os.MkdirAll(subDir, 0755)
-	
+
 	discovered, err := repository.Discover(subDir)
 	if err != nil {
 		t.Fatalf("Failed to discover repository from nested dir: %v", err)
 	}
-	
+
 	if discovered.RootDir != repo.RootDir {
 		t.Errorf("Discover returned wrong root dir: expected %s, got %s", repo.RootDir, discovered.RootDir)
 	}

@@ -19,7 +19,7 @@ func BenchmarkStoreWrite(b *testing.B) {
 	tempDir := b.TempDir()
 	store := object.NewStore(tempDir)
 	blob := object.NewBlob([]byte("benchmark object write payload"))
-	
+
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

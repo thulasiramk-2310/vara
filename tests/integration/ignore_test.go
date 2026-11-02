@@ -32,17 +32,17 @@ secret.txt
 		path string
 		want bool
 	}{
-		{".vara", true},                     // Always ignored
-		{".vara/objects/123", true},         // Always ignored
-		{"app.log", true},                   // *.log match
-		{"logs/server.log", true},           // *.log match
-		{"build", true},                     // build/ exact directory match
-		{"build/output.bin", true},          // build/ child match
-		{"src/build/output.bin", true},      // directory anywhere in path
-		{"secret.txt", true},                // exact match
-		{"src/secret.txt", true},            // exact match anywhere
-		{"main.go", false},                  // not ignored
-		{"src/main.go", false},              // not ignored
+		{".vara", true},                // Always ignored
+		{".vara/objects/123", true},    // Always ignored
+		{"app.log", true},              // *.log match
+		{"logs/server.log", true},      // *.log match
+		{"build", true},                // build/ exact directory match
+		{"build/output.bin", true},     // build/ child match
+		{"src/build/output.bin", true}, // directory anywhere in path
+		{"secret.txt", true},           // exact match
+		{"src/secret.txt", true},       // exact match anywhere
+		{"main.go", false},             // not ignored
+		{"src/main.go", false},         // not ignored
 	}
 
 	for _, tt := range tests {
@@ -55,11 +55,11 @@ secret.txt
 
 func TestWorktreeWalk(t *testing.T) {
 	tmpDir := t.TempDir()
-	
+
 	// Create files
 	os.WriteFile(filepath.Join(tmpDir, "main.go"), []byte("package main"), 0644)
 	os.WriteFile(filepath.Join(tmpDir, "app.log"), []byte("log"), 0644)
-	
+
 	os.Mkdir(filepath.Join(tmpDir, "build"), 0755)
 	os.WriteFile(filepath.Join(tmpDir, "build", "out.bin"), []byte("bin"), 0644)
 

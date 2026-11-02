@@ -16,10 +16,10 @@ func TestBuilder_TreeAndCommit(t *testing.T) {
 	// Create a couple of blobs directly in the store to represent files
 	b1 := object.NewBlob([]byte("main content"))
 	b1ID, _ := store.Write(b1)
-	
+
 	b2 := object.NewBlob([]byte("utils content"))
 	b2ID, _ := store.Write(b2)
-	
+
 	b3 := object.NewBlob([]byte("readme content"))
 	b3ID, _ := store.Write(b3)
 
@@ -59,7 +59,7 @@ func TestBuilder_TreeAndCommit(t *testing.T) {
 	if len(rootTree.Entries) != 2 { // "README.md" and "src"
 		t.Fatalf("Expected 2 entries in root tree, got %d", len(rootTree.Entries))
 	}
-	
+
 	// Check if "src" is a tree
 	var srcTreeID types.ObjectID
 	for _, e := range rootTree.Entries {
@@ -100,7 +100,7 @@ func TestBuilder_TreeAndCommit(t *testing.T) {
 		t.Fatalf("Expected TypeCommit, got %v", cObj.Type())
 	}
 	commit := cObj.(*object.Commit)
-	
+
 	if commit.Author != author {
 		t.Errorf("Expected author %q, got %q", author, commit.Author)
 	}

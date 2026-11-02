@@ -34,7 +34,7 @@ func NewWalker(store *object.Store, tips ...types.CommitID) *Walker {
 		queue:   make([]types.CommitID, 0, len(tips)),
 		visited: make(map[types.CommitID]bool),
 	}
-	
+
 	for _, tip := range tips {
 		if !w.visited[tip] {
 			w.queue = append(w.queue, tip)

@@ -21,7 +21,7 @@ func TestStatusFormatShort_Golden(t *testing.T) {
 	got := status.FormatShort(sr)
 
 	goldenPath := filepath.Join("testdata", "status_short.golden")
-	
+
 	// If the UPDATE_GOLDEN env var is set, update the golden file
 	if os.Getenv("UPDATE_GOLDEN") == "true" {
 		os.MkdirAll(filepath.Dir(goldenPath), 0755)

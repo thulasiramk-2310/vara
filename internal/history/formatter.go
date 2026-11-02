@@ -27,15 +27,15 @@ func FormatFull(id types.CommitID, commit *object.Commit) string {
 		sb.WriteString(fmt.Sprintf("parents: %s\n", strings.Join(pStrings, ", ")))
 	}
 	sb.WriteString(fmt.Sprintf("author: %s\n", commit.Author))
-	
+
 	t := time.Unix(commit.Timestamp, 0).UTC()
 	sb.WriteString(fmt.Sprintf("date:   %s\n", t.Format(time.RFC1123Z)))
 	sb.WriteString("\n")
-	
+
 	for _, line := range strings.Split(commit.Message, "\n") {
 		sb.WriteString(fmt.Sprintf("    %s\n", line))
 	}
 	sb.WriteString("\n")
-	
+
 	return sb.String()
 }

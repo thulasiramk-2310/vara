@@ -18,7 +18,7 @@ func TestCommitAndHistory(t *testing.T) {
 	repoDir := filepath.Join(tmpDir, ".vara")
 	os.Mkdir(repoDir, 0755)
 	os.Mkdir(filepath.Join(repoDir, "objects"), 0755)
-	
+
 	repo := &repository.Repository{
 		RootDir: tmpDir,
 		VaraDir: repoDir,
@@ -47,7 +47,7 @@ func TestCommitAndHistory(t *testing.T) {
 	// 4. Modify and Add again
 	os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("Hello 1 updated"), 0644)
 	os.WriteFile(filepath.Join(tmpDir, "file2.txt"), []byte("Hello 2"), 0644)
-	
+
 	// Reload index as add saves to disk
 	idxBytes, _ := os.ReadFile(filepath.Join(repoDir, "index"))
 	ctx.Index, _ = index.Deserialize(idxBytes)

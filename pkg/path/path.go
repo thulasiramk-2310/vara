@@ -22,7 +22,7 @@ func ToRepoRelative(base, target string) (string, error) {
 		}
 		target = absTarget
 	}
-	
+
 	if !filepath.IsAbs(base) {
 		absBase, err := filepath.Abs(base)
 		if err != nil {
@@ -35,6 +35,6 @@ func ToRepoRelative(base, target string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	return filepath.ToSlash(rel), nil
 }

@@ -10,7 +10,7 @@ import (
 
 func TestIndexRoundTrip(t *testing.T) {
 	idx := index.New()
-	
+
 	// Add test entries
 	var id1, id2 types.BlobID
 	id1[0] = 1
@@ -22,7 +22,7 @@ func TestIndexRoundTrip(t *testing.T) {
 		State:       index.StateAdded,
 		Path:        "foo/bar.txt",
 	})
-	
+
 	idx.Entries = append(idx.Entries, index.Entry{
 		Fingerprint: 987654321,
 		ObjectID:    id2,

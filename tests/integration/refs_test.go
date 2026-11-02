@@ -1,7 +1,6 @@
 package integration
 
 import (
-
 	"path/filepath"
 	"testing"
 
@@ -97,11 +96,11 @@ func TestFSResolver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List failed: %v", err)
 	}
-	
+
 	if len(list) != 2 {
 		t.Fatalf("Expected 2 refs in list, got %d", len(list))
 	}
-	
+
 	names := map[string]bool{}
 	for _, r := range list {
 		names[filepath.ToSlash(r.Name)] = true

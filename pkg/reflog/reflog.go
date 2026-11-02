@@ -50,7 +50,7 @@ func (m *Manager) Append(refName string, oldID, newID types.CommitID, author, me
 	defer f.Close()
 
 	timestamp := time.Now().Unix()
-	
+
 	// Format: old_id new_id author <timestamp> \t message
 	// Fallback to zeros for empty oldID (e.g. branch creation)
 	oldStr := oldID.String()
@@ -95,7 +95,7 @@ func (m *Manager) Read(refName string) ([]Entry, error) {
 
 		oldID, _ := types.ParseHex(meta[0])
 		newID, _ := types.ParseHex(meta[1])
-		
+
 		// The timestamp is the last element in meta
 		tsStr := meta[len(meta)-1]
 		ts, _ := strconv.ParseInt(tsStr, 10, 64)
