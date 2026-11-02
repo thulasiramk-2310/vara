@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
@@ -8,6 +8,7 @@ import { Glyph } from '../components/common/Glyphs';
 import { Loading, ErrorState } from '../components/common/States';
 import { BranchSwitcher, useRepoRef } from '../components/common/BranchSwitcher';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { highlightLines, languageFor, HighlightedLines } from '../utils/syntax';
 
 const chipBtn: React.CSSProperties = {
   background: 'var(--chip)',
@@ -47,6 +48,20 @@ export const BlobPage: React.FC = () => {
   });
   crumb.push({ label: fname });
 
+  // Highlighting loads on demand and arrives after the plain text is already on
+  // screen, so opening a file is never slower for it.
+  const [colored, setColored] = useState<HighlightedLines | null>(null);
+  const content = blob.data?.binary || blob.data?.truncated ? undefined : blob.data?.content;
+  useEffect(() => {
+    let alive = true;
+    setColored(null);
+    if (content === undefined) return;
+    highlightLines(content, languageFor(path)).then((l) => alive && setColored(l));
+    return () => {
+      alive = false;
+    };
+  }, [content, path]);
+
   const lines = (() => {
     const src = String(blob.data?.content ?? '');
     const arr = src.split('\n');
@@ -85,7 +100,7 @@ export const BlobPage: React.FC = () => {
             <button onClick={() => copy(path, 'Path')} style={chipBtn}>Copy path</button>
             <a href={rawHref} style={chipBtn}>Raw</a>
             <a href={rawHref} download style={chipBtn}>Download</a>
-            <Link to={routes.commits(repo)} style={chipBtn}>History</Link>
+            <Link to={routes.commits(repo, path)} style={chipBtn}>History</Link>
           </div>
 
           {blob.data.binary ? (
@@ -106,7 +121,11 @@ export const BlobPage: React.FC = () => {
                       <td style={{ width: '1%', textAlign: 'right', padding: '0 14px 0 16px', color: 'var(--faint)', userSelect: 'none', borderRight: '1px solid var(--border)' }}>
                         <a href={`#L${i + 1}`} style={{ color: 'inherit', textDecoration: 'none' }}>{i + 1}</a>
                       </td>
-                      <td style={{ padding: '0 16px', whiteSpace: 'pre', color: 'var(--text)' }}>{ln === '' ? ' ' : ln}</td>
+                      <td style={{ padding: '0 16px', whiteSpace: 'pre', color: 'var(--text)' }}>
+                        {colored && colored[i] && colored[i].length
+                          ? colored[i].map((t, k) => (t.cls ? <span key={k} className={t.cls}>{t.text}</span> : t.text))
+                          : ln === '' ? ' ' : ln}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

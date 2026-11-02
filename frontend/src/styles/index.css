@@ -393,3 +393,33 @@ textarea:focus-visible {
     transition-duration: .001ms !important;
   }
 }
+
+/* ---- Syntax colours for the file viewer. Every pair was checked to reach at
+   least 4.5:1 against its theme's code background. ------------------------- */
+[data-theme="light"] {
+  --tok-keyword: #a8321f;
+  --tok-string: #1a6e32;
+  --tok-comment: #6f6457;
+  --tok-number: #0b5cad;
+  --tok-title: #0f6a60;
+  --tok-type: #8a5300;
+  --tok-meta: #5f5447;
+}
+[data-theme="dark"] {
+  --tok-keyword: #ff8a73;
+  --tok-string: #7fd18f;
+  --tok-comment: #a3978a;
+  --tok-number: #7db7f5;
+  --tok-title: #5fd0c3;
+  --tok-type: #f0b35c;
+  --tok-meta: #b3a898;
+}
+.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-doctag, .hljs-name { color: var(--tok-keyword); }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-symbol, .hljs-bullet { color: var(--tok-string); }
+.hljs-comment, .hljs-quote { color: var(--tok-comment); font-style: italic; }
+.hljs-number, .hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable { color: var(--tok-number); }
+.hljs-title, .hljs-section, .hljs-selector-id, .hljs-selector-class { color: var(--tok-title); }
+.hljs-type, .hljs-built_in, .hljs-class .hljs-title { color: var(--tok-type); }
+.hljs-meta, .hljs-deletion, .hljs-link, .hljs-subst { color: var(--tok-meta); }
+.hljs-strong { font-weight: 700; }
+.hljs-emphasis { font-style: italic; }
