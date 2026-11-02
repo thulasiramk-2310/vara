@@ -1,32 +1,30 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { safeNext } from '../components/common/RequireAuth';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { ApiError } from '../api/client';
 import { Logo } from '../components/common/Logo';
 
 interface AuthPageProps {
-  initialMode: 'login' | 'signup';
+  initialMode?: 'login' | 'signup'; // /signup now shows the same page; see the note under the form
 }
 
-export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
-  const [mode, setMode] = useState(initialMode);
+export const AuthPage: React.FC<AuthPageProps> = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { showToast } = useToast();
   const { login } = useAuth();
 
-  const isLogin = mode === 'login';
-  const isSignup = mode === 'signup';
-
-  const authTitle = isLogin ? 'Welcome back' : 'Create your account';
-  const authSub = isLogin ? 'Sign in to browse and measure your repositories.' : 'Start hosting content-addressed repositories in minutes.';
-  const authCta = isLogin ? 'Sign in' : 'Create account';
-  const authSwapText = isLogin ? 'New to VARA?' : 'Already have an account?';
-  const authSwapLink = isLogin ? 'Create an account' : 'Sign in';
+  usePageTitle('Sign in');
+  const authTitle = 'Welcome back';
+  const authSub = 'Sign in to browse your repositories.';
+  const authCta = 'Sign in';
 
   const authChips = ['content-addressed', 'transactional', 'self-hosted', 'RFC-driven'];
 
@@ -34,13 +32,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
     e.preventDefault();
     if (submitting) return;
     setError('');
-
-    // Self-service signup has no v0.4 endpoint — accounts are provisioned by the
-    // server operator (RFC-0020). Be honest rather than faking success.
-    if (isSignup) {
-      setError('Accounts are provisioned by the server operator in v0.4. Ask your admin, then sign in.');
-      return;
-    }
 
     if (!username.trim() || !password) {
       setError('Enter your username and password.');
@@ -51,7 +42,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
     try {
       await login(username.trim(), password);
       showToast('Signed in');
-      navigate('/dashboard');
+      navigate(safeNext(params.get('next')), { replace: true });
     } catch (err) {
       const e2 = err as ApiError;
       // The server returns an indistinguishable 401 for wrong/absent/disabled
@@ -68,19 +59,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
     }
   };
 
-  const swapAuth = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setError('');
-    setMode(isLogin ? 'signup' : 'login');
-  };
-
-  const noop = (e: React.MouseEvent) => {
-    e.preventDefault();
-    showToast('Prototype — not wired');
-  };
-
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+    <div className="v-auth">
       
       {/* Left Form Panel */}
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '40px' }}>
@@ -98,13 +78,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
 
           <form onSubmit={doAuth} style={{ display: 'grid', gap: '14px' }}>
             
-            {isSignup && (
-              <label style={{ display: 'grid', gap: '6px' }}>
-                <span style={{ fontSize: '12.5px', fontWeight: 560, color: 'var(--dim)' }}>Full name</span>
-                <input placeholder="Ada Lovelace" style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '9px', padding: '11px 13px', fontSize: '14px', color: 'var(--text)', outline: 'none' }} />
-              </label>
-            )}
-            
             <label style={{ display: 'grid', gap: '6px' }}>
               <span style={{ fontSize: '12.5px', fontWeight: 560, color: 'var(--dim)' }}>Username</span>
               <input
@@ -121,13 +94,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
             <label style={{ display: 'grid', gap: '6px' }}>
               <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '12.5px', fontWeight: 560, color: 'var(--dim)' }}>Password</span>
-                {isLogin && <a href="#" onClick={noop} style={{ fontSize: '12px', color: 'var(--accent)', textDecoration: 'none' }}>Forgot?</a>}
               </span>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                autoComplete={isLogin ? 'current-password' : 'new-password'}
+                autoComplete="current-password"
                 placeholder="••••••••••"
                 style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '9px', padding: '11px 13px', fontSize: '14px', color: 'var(--text)', outline: 'none' }}
               />
@@ -143,27 +115,17 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
               {submitting ? 'Signing in…' : authCta}
             </button>
             
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--faint)', fontSize: '12px', margin: '2px 0' }}>
-              <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />or<span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-            </div>
-            
-            <button type="button" onClick={noop} style={{ background: 'var(--panel)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '9px', padding: '11px', fontSize: '13.5px', fontWeight: 560, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '9px' }}>
-              <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor">
-                <path d="M8.5 1.75a.75.75 0 0 0-1 0L2.5 6.5a.75.75 0 0 0-.25.56v6.19c0 .41.34.75.75.75h3.25V10.5a1.75 1.75 0 0 1 3.5 0v3.5h3.25a.75.75 0 0 0 .75-.75V7.06a.75.75 0 0 0-.25-.56Z" />
-              </svg>
-              Continue with SSO
-            </button>
             
           </form>
 
           <p style={{ textAlign: 'center', margin: '24px 0 0', color: 'var(--dim)', fontSize: '13px' }}>
-            {authSwapText} <a href="#" onClick={swapAuth} style={{ color: 'var(--accent)', fontWeight: 560, textDecoration: 'none' }}>{authSwapLink}</a>
+            There is no self-service sign-up. This Hub's administrator creates accounts.
           </p>
         </div>
       </div>
       
       {/* Right Feature Panel */}
-      <div style={{ background: 'var(--inset)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '56px', position: 'relative', overflow: 'hidden' }}>
+      <div className="v-auth-aside" style={{ background: 'var(--inset)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '56px', position: 'relative', overflow: 'hidden' }}>
         <div style={{ maxWidth: '400px', animation: 'v-fade .3s ease' }}>
           
           <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: '12px', color: 'var(--dim)', marginBottom: '18px' }}>
@@ -185,12 +147,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode }) => {
           <div style={{ marginTop: '34px', background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px', boxShadow: 'var(--shadow)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--green)' }} />
-              <span style={{ fontSize: '12.5px', color: 'var(--dim)' }}>latest release</span>
-              <span style={{ flex: 1 }} />
-              <span style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: '12px', color: 'var(--text)' }}>v0.4.0</span>
+              <span style={{ fontSize: '12.5px', color: 'var(--dim)' }}>this Hub</span>
             </div>
             <div style={{ fontSize: '13px', color: 'var(--text)' }}>
-              Hub read UI — repository browser, diff viewer, search.
+              Browse files, history, diffs and search. Reading only; pushing is done with the vara command.
             </div>
           </div>
           
