@@ -49,8 +49,13 @@ type PendingTransaction struct {
 // ReflogEntry is a re-export of reflog.Entry for callers that only import recovery.
 type ReflogEntry = reflog.Entry
 
-// ScanJournal returns all journal entries whose state is not COMPLETED,
-// sorted oldest-first by filename (which encodes nanosecond timestamps).
+// ScanJournal returns the journal entries of transactions that never finished: those
+// still in BEGIN, EXECUTE, VERIFY or COMMIT. A COMPLETED entry succeeded and a FAILED
+// one was rolled back (or already recovered), so neither needs recovery. Counting
+// FAILED as unfinished made one recovery block every later undo: it kept finding the
+// entry it had just marked FAILED and never reached the reflog.
+//
+// Entries are sorted oldest-first by filename (which encodes nanosecond timestamps).
 func ScanJournal(varaDir string) ([]PendingTransaction, error) {
 	journalDir := filepath.Join(varaDir, "journal")
 	entries, err := os.ReadDir(journalDir)
@@ -71,7 +76,7 @@ func ScanJournal(varaDir string) ([]PendingTransaction, error) {
 		if err != nil {
 			continue // Skip corrupt entries.
 		}
-		if txn.State != StateComplete {
+		if txn.State != StateComplete && txn.State != StateFailed {
 			pending = append(pending, PendingTransaction{
 				ID:      txn.ID,
 				State:   txn.State,
