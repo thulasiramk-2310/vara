@@ -5,7 +5,7 @@ import { api, short, when, TreeEntry } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../hooks/useToast';
 import { routes } from '../routes';
-import { Loading, ErrorState } from '../components/common/States';
+import { Loading, ErrorState, Empty } from '../components/common/States';
 import { BranchSwitcher, useRepoRef } from '../components/common/BranchSwitcher';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { Markdown } from '../components/common/Markdown';
@@ -118,7 +118,16 @@ export const CodePage: React.FC = () => {
           </div>
 
           {/* File tree */}
-          {tree.loading ? (
+          {sum.data && sum.data.commit_count === 0 ? (
+            <Empty>
+              <div style={{ color: 'var(--text)', fontWeight: 600, marginBottom: 'var(--s-2)' }}>This repository is empty.</div>
+              <div style={{ marginBottom: 'var(--s-4)' }}>Push a first commit from your machine:</div>
+              <pre style={{ display: 'inline-block', textAlign: 'left', margin: 0, padding: 'var(--s-3) var(--s-4)', background: 'var(--inset)', border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text)', overflowX: 'auto', maxWidth: '100%' }}>
+{`vara remote add origin ${window.location.origin}/${repo}
+vara push origin main`}
+              </pre>
+            </Empty>
+          ) : tree.loading ? (
             <Loading />
           ) : tree.error ? (
             <ErrorState error={tree.error} onRetry={tree.retry} />

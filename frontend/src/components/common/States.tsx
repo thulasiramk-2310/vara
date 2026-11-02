@@ -95,6 +95,11 @@ export const ErrorState: React.FC<{ error: ApiError; onRetry?: () => void }> = (
     >
       <div style={{ fontSize: '16px', fontWeight: 650, marginBottom: 'var(--s-1)' }}>{title}</div>
       <div style={{ color: 'var(--dim)', fontSize: '14px', maxWidth: '560px' }}>{detail}</div>
+      {(error.status > 0 || error.code) && (
+        <div style={{ color: 'var(--faint)', fontFamily: 'var(--font-mono)', fontSize: '12px', marginTop: 'var(--s-2)' }}>
+          {[error.status > 0 ? `HTTP ${error.status}` : '', error.code || ''].filter(Boolean).join(' · ')}
+        </div>
+      )}
       {kind === 'auth' && (
         <Link to={`/login?next=${next}`} className="v-btn v-btn-primary" style={{ marginTop: 'var(--s-4)' }}>
           Sign in

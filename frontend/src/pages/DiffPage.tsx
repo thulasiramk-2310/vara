@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { api, short, when, FileDiffResponse, DiffFileInfo, ApiError } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { routes } from '../routes';
@@ -137,7 +137,9 @@ export const DiffPage: React.FC = () => {
           <span>{detail.data?.author}</span>
           <span>{when(detail.data?.timestamp)}</span>
           <span style={{ flex: 1 }} />
-          <a href={routes.commits(repo)} style={{ color: 'var(--accent)', textDecoration: 'none' }}>All commits</a>
+          {/* The server needs the full commit id to browse at it, so use the id it returned. */}
+          <Link to={routes.tree(repo, '', detail.data?.id || id)} style={{ color: 'var(--accent)', textDecoration: 'none' }}>Browse files at this commit</Link>
+          <Link to={routes.commits(repo)} style={{ color: 'var(--accent)', textDecoration: 'none' }}>All commits</Link>
         </div>
       </div>
 
