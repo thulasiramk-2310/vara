@@ -112,7 +112,17 @@ func changeBlocks(base, other []string) []lineChange {
 	}
 	// Trailing edit: base lines left to delete and/or other lines left to insert.
 	if i < n || j < m {
-		blocks = append(blocks, lineChange{baseStart: i, baseEnd: n, repl: append([]string(nil), other[j:]...)})
+		tail := lineChange{baseStart: i, baseEnd: n, repl: append([]string(nil), other[j:]...)}
+		// A replacement that reaches the end of the file is found as a deletion
+		// followed by an insertion at the point where the deletion stopped. They are
+		// one change, so join them; kept apart, the base of the conflict is lost
+		// (it reads as a deletion both sides agree on plus two insertions).
+		if k := len(blocks); k > 0 && blocks[k-1].baseEnd == tail.baseStart {
+			blocks[k-1].baseEnd = tail.baseEnd
+			blocks[k-1].repl = append(blocks[k-1].repl, tail.repl...)
+		} else {
+			blocks = append(blocks, tail)
+		}
 	}
 	return blocks
 }
