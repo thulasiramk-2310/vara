@@ -38,6 +38,30 @@ func saveConfig(varaDir string, c *config.Config) error {
 	return c.Save(configPath(varaDir))
 }
 
+// isLocalLocation reports whether a remote location is a filesystem path rather than a URL.
+func isLocalLocation(loc string) bool { return !strings.Contains(loc, "://") }
+
+// normalizeRemoteLocation makes a local path absolute, so it still points at the same repository
+// when the user runs pull or push from another folder. URLs are returned exactly as typed.
+func normalizeRemoteLocation(loc string) string {
+	if !isLocalLocation(loc) {
+		return loc
+	}
+	if abs, err := filepath.Abs(loc); err == nil {
+		return abs
+	}
+	return loc
+}
+
+// resolveRemoteLocation turns a relative local path stored by an earlier version into one
+// relative to the repository root. Absolute paths and URLs are returned unchanged.
+func resolveRemoteLocation(rootDir, loc string) string {
+	if !isLocalLocation(loc) || filepath.IsAbs(loc) {
+		return loc
+	}
+	return filepath.Clean(filepath.Join(rootDir, loc))
+}
+
 // --- vara remote ---
 
 // RunRemote implements `vara remote`, `vara remote add <name> <url>`, and
@@ -68,7 +92,7 @@ func RunRemote(ctx *Context, args []string) (string, error) {
 		if _, exists := cfg.Remote(name); exists {
 			return "", fmt.Errorf("remote '%s' already exists", name)
 		}
-		cfg.AddRemote(name, url)
+		cfg.AddRemote(name, normalizeRemoteLocation(url))
 		if err := saveConfig(ctx.Repository.VaraDir, cfg); err != nil {
 			return "", err
 		}
@@ -145,7 +169,7 @@ func RunClone(url, dir string) (string, error) {
 
 	// Record the origin remote.
 	cfg := config.New()
-	cfg.AddRemote("origin", url)
+	cfg.AddRemote("origin", normalizeRemoteLocation(url))
 	if err := saveConfig(repo.VaraDir, cfg); err != nil {
 		return "", fmt.Errorf("clone: write config: %w", err)
 	}
@@ -230,7 +254,7 @@ func RunFetch(ctx *Context, remoteName string) (string, error) {
 		return "", fmt.Errorf("no such remote: %s", remoteName)
 	}
 
-	tr, _, err := openRemote(remote.URL)
+	tr, _, err := openRemote(resolveRemoteLocation(ctx.Repository.RootDir, remote.URL))
 	if err != nil {
 		return "", fmt.Errorf("fetch: %w", err)
 	}
@@ -363,7 +387,7 @@ func RunPush(ctx *Context, remoteName, branch string, force bool) (string, error
 		return "", fmt.Errorf("no such remote: %s", remoteName)
 	}
 
-	tr, _, err := openRemote(remote.URL)
+	tr, _, err := openRemote(resolveRemoteLocation(ctx.Repository.RootDir, remote.URL))
 	if err != nil {
 		return "", fmt.Errorf("push: %w", err)
 	}
