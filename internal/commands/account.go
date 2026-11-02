@@ -41,6 +41,30 @@ func authHeader(cfg AuthConfig) string {
 	return ""
 }
 
+// resolveAuthHeader picks the Authorization header for a control-plane request to base: an
+// explicit --basic/--bearer wins; otherwise the stored login for the server's origin, so that
+// after `vara login` no password has to be typed on a command line (where it would land in
+// shell history and the process list); otherwise none (an anonymous request). A stored login
+// that has expired is an error with guidance, never a silent downgrade to anonymous.
+func resolveAuthHeader(base string, explicit AuthConfig) (string, error) {
+	if h := authHeader(explicit); h != "" {
+		return h, nil
+	}
+	store, err := credstore.Load()
+	if err != nil {
+		return "", nil
+	}
+	c, ok := store.Get(base)
+	if !ok {
+		return "", nil
+	}
+	if c.Expired() {
+		return "", fmt.Errorf("your session for %s has expired.\n\nRun:\n\n  vara login %s",
+			originOrRaw(base), originOrRaw(base))
+	}
+	return "Bearer " + c.Secret, nil
+}
+
 // cpDo issues a control-plane request to base+path and decodes into out (nil for
 // 204). A non-2xx becomes the server's structured error.
 func cpDo(base, method, path, auth string, body, out any) error {
@@ -271,7 +295,10 @@ func RunToken(args []string, cfg AuthConfig) error {
 		return fmt.Errorf("usage: vara token <create|list|revoke> <server-url> [args]")
 	}
 	sub, base, rest := args[0], args[1], args[2:]
-	auth := authHeader(cfg)
+	auth, err := resolveAuthHeader(base, cfg)
+	if err != nil {
+		return err
+	}
 	switch sub {
 	case "create":
 		if len(rest) < 1 {
@@ -316,7 +343,10 @@ func RunAccount(args []string, cfg AuthConfig) error {
 		return fmt.Errorf("usage: vara account <create|disable|delete|passwd> <server-url> <username>")
 	}
 	sub, base, username := args[0], args[1], args[2]
-	auth := authHeader(cfg)
+	auth, err := resolveAuthHeader(base, cfg)
+	if err != nil {
+		return err
+	}
 	switch sub {
 	case "create":
 		if cfg.Password == "" {

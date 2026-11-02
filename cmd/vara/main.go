@@ -1012,6 +1012,9 @@ Credentials (choose one):
 Examples:
   vara repo create http://localhost:8080 myproject --basic alice:s3cret
   vara repo list   http://localhost:8080 --basic alice:s3cret
+
+After 'vara login <server-url>' no credential flags are needed. Avoid --basic on a
+shared computer: the password would stay in your shell history.
 `,
 	"identity": `usage: vara identity show
        vara identity set [--default] --name "<name>" --email "<email>"
@@ -1070,6 +1073,9 @@ is long-lived until revoked; its secret is shown once at creation.
   vara token create http://localhost:8080 ci-bot --basic alice:s3cret
   vara token list   http://localhost:8080 --basic alice:s3cret
   vara token revoke http://localhost:8080 <token-id> --basic alice:s3cret
+
+After 'vara login <server-url>' no credential flags are needed. Avoid --basic on a
+shared computer: the password would stay in your shell history.
 `,
 	"account": `usage: vara account <create|disable|delete|passwd> <server-url> <username>
                     [--password <pw>] [--basic u:s | --bearer t]
@@ -1092,6 +1098,9 @@ create-repo, and list-repos in <policy>/_server.json. Run this once at install:
   vara account create --accounts /var/lib/vara/accounts \
                       --policy   /var/lib/vara/policy \
                       --username admin --password <pw>
+
+After 'vara login <server-url>' no credential flags are needed. Avoid --basic on a
+shared computer: the password would stay in your shell history.
 `,
 	"doctor": `usage: vara doctor [<server-url>] [--basic <user:secret> | --bearer <token>]
 

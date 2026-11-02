@@ -98,6 +98,14 @@ func RunRepo(args []string, cfg RepoConfig) error {
 	}
 	serverURL, rest := rest[0], rest[1:]
 	c := newRepoClient(serverURL, cfg)
+	if c.authHeader == "" {
+		// No credential flag: use the stored login for this server, as clone and push do.
+		h, err := resolveAuthHeader(serverURL, AuthConfig{})
+		if err != nil {
+			return err
+		}
+		c.authHeader = h
+	}
 
 	switch sub {
 	case "list":
