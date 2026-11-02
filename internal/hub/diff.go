@@ -26,7 +26,21 @@ var (
 	maxDiffInputSoft = 512 << 10 // 512 KiB — soft per-side cap → truncated
 	maxDiffEdits     = 10000     // Myers max edit distance → too different → truncated
 	maxHunkLines     = 20000     // total emitted diff lines → truncated
+
+	// maxTraceInts bounds the memory one diff may use for Myers' backtracking
+	// table: 16M integers, about 128 MiB. A diff that would need more is reported
+	// as "too different" (truncated), exactly as one over maxDiffEdits is. Without
+	// this bound a fully rewritten 6,000-line file needed 1.9 GB for one request.
+	maxTraceInts = 16 << 20
 )
+
+// diffSlots limits how many line diffs run at once. Each can use up to
+// maxTraceInts, so a crowd of readers asking for expensive diffs at the same time
+// queues instead of exhausting the server's memory.
+var diffSlots = make(chan struct{}, 4)
+
+// SetMaxTraceInts is a test hook that bounds the backtracking table.
+func SetMaxTraceInts(n int) int { old := maxTraceInts; maxTraceInts = n; return old }
 
 const diffContext = 3 // lines of context around each changed region
 
@@ -374,6 +388,15 @@ type lineOp struct {
 // Myers O(ND) algorithm, bounded by maxD edits. It returns ok=false when the edit
 // distance exceeds maxD (too different to render inline). This is the viewer diff
 // (D2), distinct from the engine's merge Myers.
+// trace is the saved part of Myers' working array for one step: the entries
+// from index lo onward.
+type trace struct {
+	lo int
+	v  []int
+}
+
+func (t trace) at(i int) int { return t.v[i-t.lo] }
+
 func myersLines(src, dst []string, maxD int) ([]lineOp, bool) {
 	n, m := len(src), len(dst)
 	if n == 0 && m == 0 {
@@ -393,16 +416,33 @@ func myersLines(src, dst []string, maxD int) ([]lineOp, bool) {
 		}
 		return out, true
 	}
+	diffSlots <- struct{}{}
+	defer func() { <-diffSlots }()
+
 	offset := n + m
 	v := make([]int, 2*(n+m)+1)
-	traces := make([][]int, 0, maxD+1)
+	traces := make([]trace, 0, 64)
+	used := 0
 	for d := 0; d <= n+m; d++ {
 		if maxD > 0 && d > maxD {
 			return nil, false
 		}
-		snap := make([]int, len(v))
-		copy(snap, v)
-		traces = append(traces, snap)
+		// Step d reads and writes only the diagonals -d..d (and one either side),
+		// so only that slice of v is saved, not the whole array.
+		lo, hi := offset-d-1, offset+d+2
+		if lo < 0 {
+			lo = 0
+		}
+		if hi > len(v) {
+			hi = len(v)
+		}
+		used += hi - lo
+		if used > maxTraceInts {
+			return nil, false
+		}
+		snap := make([]int, hi-lo)
+		copy(snap, v[lo:hi])
+		traces = append(traces, trace{lo: lo, v: snap})
 		for k := -d; k <= d; k += 2 {
 			down := k == -d || (k != d && v[k-1+offset] < v[k+1+offset])
 			var x int
@@ -427,20 +467,20 @@ func myersLines(src, dst []string, maxD int) ([]lineOp, bool) {
 
 // buildLineOps traces backward through the Myers D-paths to produce the edit
 // script in forward order (mirrors pkg/diff buildEdits, viewer-side).
-func buildLineOps(traces [][]int, src, dst []string, d, offset int) []lineOp {
+func buildLineOps(traces []trace, src, dst []string, d, offset int) []lineOp {
 	x, y := len(src), len(dst)
 	ops := make([]lineOp, 0, x+y)
 	for d > 0 {
 		v := traces[d]
 		k := x - y
-		down := k == -d || (k != d && v[k-1+offset] < v[k+1+offset])
+		down := k == -d || (k != d && v.at(k-1+offset) < v.at(k+1+offset))
 		var prevK int
 		if down {
 			prevK = k + 1
 		} else {
 			prevK = k - 1
 		}
-		prevX := v[prevK+offset]
+		prevX := v.at(prevK + offset)
 		prevY := prevX - prevK
 		if down {
 			for x > prevX && y > prevY+1 {
