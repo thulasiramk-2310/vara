@@ -16,6 +16,7 @@ package merge
 
 import (
 	"fmt"
+	"github.com/thulasiramk-2310/vara/internal/fsutil"
 	"os"
 	"path/filepath"
 
@@ -179,8 +180,12 @@ func threeWay(in Inputs, base types.CommitID) (Output, error) {
 
 	if len(conflicts) > 0 {
 		// Write MERGE_HEAD so subsequent commands know a merge is in progress.
+		// A failure here must not be ignored: without MERGE_HEAD the next commit would be sealed
+		// as an ordinary one-parent commit and silently drop the merge.
 		mergeHeadPath := filepath.Join(in.VaraDir, "MERGE_HEAD")
-		os.WriteFile(mergeHeadPath, []byte(in.TheirCommit.String()+"\n"), 0644)
+		if err := fsutil.WriteFile(mergeHeadPath+".tmp", mergeHeadPath, []byte(in.TheirCommit.String()+"\n"), 0644); err != nil {
+			return Output{}, fmt.Errorf("merge: record MERGE_HEAD: %w", err)
+		}
 		return Output{Result: Conflict, Conflicts: conflicts}, nil
 	}
 

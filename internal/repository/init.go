@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"github.com/thulasiramk-2310/vara/internal/fsutil"
 	"os"
 	"path/filepath"
 )
@@ -35,13 +36,13 @@ func Init(path string) (*Repository, error) {
 
 	// Create VERSION file
 	versionPath := filepath.Join(vd, VersionFile)
-	if err := os.WriteFile(versionPath, []byte("1\n"), 0644); err != nil {
+	if err := fsutil.WriteFile(versionPath+".tmp", versionPath, []byte("1\n"), 0644); err != nil {
 		return nil, err
 	}
 
 	// Create HEAD file
 	headPath := filepath.Join(vd, HeadFile)
-	if err := os.WriteFile(headPath, []byte("ref: refs/heads/main\n"), 0644); err != nil {
+	if err := fsutil.WriteFile(headPath+".tmp", headPath, []byte("ref: refs/heads/main\n"), 0644); err != nil {
 		return nil, err
 	}
 

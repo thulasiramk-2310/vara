@@ -4,10 +4,10 @@
 // VARA-RFC-0006 Locking and Transactions
 //
 // Responsibilities:
-// - Manage the Write-Ahead Journal in .vara/journal/.
-// - Coordinate lock acquisition and release per the RFC-0006 hierarchy.
-// - Expose the six-phase transaction lifecycle: BEGIN, EXECUTE, VERIFY,
-//   COMMIT, COMPLETE, FAILED.
+//   - Manage the Write-Ahead Journal in .vara/journal/.
+//   - Coordinate lock acquisition and release per the RFC-0006 hierarchy.
+//   - Expose the six-phase transaction lifecycle: BEGIN, EXECUTE, VERIFY,
+//     COMMIT, COMPLETE, FAILED.
 //
 // This package MUST NOT:
 // - Import commands or repository packages.
@@ -16,6 +16,7 @@ package transaction
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/thulasiramk-2310/vara/internal/fsutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -153,5 +154,7 @@ func (t *Transaction) flush() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(t.journalPath, data, 0644)
+	// Atomic: crash recovery skips a journal it cannot parse, so a torn write would make an
+	// interrupted operation unrecoverable.
+	return fsutil.WriteFile(t.journalPath+".tmp", t.journalPath, data, 0644)
 }

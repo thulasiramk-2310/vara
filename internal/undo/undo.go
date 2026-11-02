@@ -15,6 +15,7 @@ package undo
 import (
 	"archive/tar"
 	"fmt"
+	"github.com/thulasiramk-2310/vara/internal/fsutil"
 	"io"
 	"os"
 	"path/filepath"
@@ -110,7 +111,7 @@ func undoJournal(in Inputs, txn recovery.PendingTransaction) (Result, error) {
 		return Result{}, fmt.Errorf("read journal: %w", err)
 	}
 	updated := strings.ReplaceAll(string(data), `"`+string(txn.State)+`"`, `"FAILED"`)
-	if err := os.WriteFile(txn.Path, []byte(updated), 0644); err != nil {
+	if err := fsutil.WriteFile(txn.Path+".tmp", txn.Path, []byte(updated), 0644); err != nil {
 		return Result{}, fmt.Errorf("update journal: %w", err)
 	}
 	return Result{
