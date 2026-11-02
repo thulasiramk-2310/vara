@@ -99,14 +99,20 @@ vara account create \
   --accounts srv/accounts --policy srv/policy \
   --username admin --password 'choose-a-strong-password'
 
+sh scripts/build-hub-ui.sh        # builds the web interface into ./hub-ui (needs Node.js 20+)
+
 vara serve \
   --addr :8080 \
   --root     srv/repos \
   --policy   srv/policy \
   --meta     srv/meta \
   --accounts srv/accounts \
-  --hub      web
+  --hub      hub-ui
 ```
+
+The Docker image builds the web interface itself. With the binary, build it once with
+`scripts/build-hub-ui.sh` and point `--hub` at the result. The folder `web/` is an older,
+dependency-free page that still works if you cannot use Node.js.
 
 Run it under a process supervisor (systemd, runit, supervisord) for production.
 A minimal systemd unit:
@@ -142,7 +148,7 @@ never pushable (a core VARA invariant).
 | `--policy`   | `policy/`   | authorization policy (RFC-0018) — who can do what |
 | `--meta`     | `meta/`     | repository metadata & ownership (RFC-0019) |
 | `--accounts` | `accounts/` | accounts, sessions, API tokens (RFC-0020, argon2id hashes at rest) |
-| `--hub`      | `web/`      | the static Hub UI (RFC-0021), served same-origin |
+| `--hub`      | `hub-ui/`   | the built Hub UI (RFC-0021; see `scripts/build-hub-ui.sh`), served same-origin |
 
 Back up the whole parent directory to back up the Hub. `--meta` requires
 `--policy` (ownership is seeded as policy). Omitting `--accounts`/`--hub` yields a

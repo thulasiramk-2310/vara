@@ -17,6 +17,16 @@ ARG VERSION=docker
 RUN CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=${VERSION}" \
     -o /out/vara ./cmd/vara
 
+# --- hub UI ------------------------------------------------------------------
+# The Hub's web interface is the React app in frontend/. It is built here, from the
+# lock file, so the image needs no network at run time and ships only static files.
+FROM node:22-alpine AS ui
+WORKDIR /ui
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
 # --- runtime -----------------------------------------------------------------
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates \
@@ -25,7 +35,7 @@ RUN apk add --no-cache ca-certificates \
     && chown vara:vara /data
 
 COPY --from=build /out/vara /usr/local/bin/vara
-COPY --from=build /src/web /srv/web
+COPY --from=ui /ui/dist /srv/web
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
