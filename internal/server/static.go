@@ -42,9 +42,26 @@ func staticHandler(dir string) http.Handler {
 		clean := filepath.Clean("/" + r.URL.Path)
 		full := filepath.Join(dir, clean)
 		if fi, err := os.Stat(full); err != nil || fi.IsDir() {
-			// Unknown path or directory → serve the SPA entry point.
+			// Build output lives under /assets/. A missing file there is a real 404,
+			// so a stale page never receives HTML where it asked for JavaScript or
+			// CSS. Other paths are app routes and may contain dots (a deep link to
+			// /r/demo/blob/README.md), so only this prefix is treated as a file.
+			if strings.HasPrefix(clean, "/assets/") {
+				http.NotFound(w, r)
+				return
+			}
+			// An app route: serve the SPA entry point. It must be revalidated on
+			// every load so a new deploy is picked up at once.
+			w.Header().Set("Cache-Control", "no-cache")
 			http.ServeFile(w, r, index)
 			return
+		}
+		switch {
+		case strings.HasPrefix(clean, "/assets/"):
+			// Build output names these files by content hash, so they never change.
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		default:
+			w.Header().Set("Cache-Control", "no-cache")
 		}
 		fs.ServeHTTP(w, r)
 	})

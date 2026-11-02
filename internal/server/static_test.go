@@ -46,6 +46,55 @@ func TestStaticHubServing(t *testing.T) {
 	}
 }
 
+func TestStaticHubCachingAndMissingAssets(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"index.html":          "<html>vara hub</html>",
+		"assets/index-abc.js": "console.log('hub')",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ts := httptest.NewServer(HandlerWithOptions(t.TempDir(), Options{HubDir: dir}))
+	t.Cleanup(ts.Close)
+
+	get := func(path string) (*http.Response, string) {
+		t.Helper()
+		resp, err := http.Get(ts.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp, string(b)
+	}
+
+	// Hashed build output is cached for a year and marked immutable.
+	if resp, _ := get("/assets/index-abc.js"); resp.Header.Get("Cache-Control") != "public, max-age=31536000, immutable" {
+		t.Fatalf("asset Cache-Control = %q", resp.Header.Get("Cache-Control"))
+	}
+	// The entry page is revalidated, at the root and on an app route.
+	for _, p := range []string{"/", "/r/demo/commits"} {
+		if resp, _ := get(p); resp.Header.Get("Cache-Control") != "no-cache" {
+			t.Fatalf("%s Cache-Control = %q, want no-cache", p, resp.Header.Get("Cache-Control"))
+		}
+	}
+	// A missing asset is a real 404, never the HTML page.
+	if resp, b := get("/assets/missing.js"); resp.StatusCode != http.StatusNotFound || strings.Contains(b, "vara hub") {
+		t.Fatalf("missing asset: status %d body %q", resp.StatusCode, b)
+	}
+	// App routes that contain dots are still app routes, not missing files.
+	for _, p := range []string{"/r/demo/blob/README.md", "/r/my.repo"} {
+		if resp, b := get(p); resp.StatusCode != http.StatusOK || !strings.Contains(b, "vara hub") {
+			t.Fatalf("%s: status %d body %q, want the app", p, resp.StatusCode, b)
+		}
+	}
+}
+
 func TestCookieSession(t *testing.T) {
 	ts, mgr, _ := newAccountHub(t)
 	if err := mgr.CreateAccount("alice", "password1"); err != nil {
