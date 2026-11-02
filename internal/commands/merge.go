@@ -35,6 +35,11 @@ import (
 //  5. On Success/FastForward: create merge commit, update refs, write index.
 //  6. On Conflict: write index with markers, leave MERGE_HEAD, notify user.
 func RunMerge(ctx *Context, branchName string) (string, error) {
+	return RunMergeWith(ctx, branchName, MergeOptions{})
+}
+
+// RunMergeWith is RunMerge with a say in how conflicts are handled (see MergeOptions).
+func RunMergeWith(ctx *Context, branchName string, opts MergeOptions) (string, error) {
 	if branchName == "" {
 		return "", fmt.Errorf("branch name required")
 	}
@@ -50,7 +55,7 @@ func RunMerge(ctx *Context, branchName string) (string, error) {
 		return "", fmt.Errorf("branch '%s' not found", branchName)
 	}
 
-	return MergeIntoHEAD(ctx, theirCommitID, branchName)
+	return MergeIntoHEADWith(ctx, theirCommitID, branchName, opts)
 }
 
 // fastForwardUnborn points a branch that has no commits yet at their commit and checks it out.
@@ -112,6 +117,12 @@ func fastForwardUnborn(ctx *Context, resolver *refs.FSResolver, headRef string, 
 // by `vara merge <branch>` (theirLabel = branch name) and `vara pull`
 // (theirLabel = "<remote>/<branch>"), since the merge engine is commit-based.
 func MergeIntoHEAD(ctx *Context, theirCommitID types.CommitID, theirLabel string) (string, error) {
+	return MergeIntoHEADWith(ctx, theirCommitID, theirLabel, MergeOptions{})
+}
+
+// MergeIntoHEADWith merges a commit into HEAD and, for conflicts the engine cannot
+// settle, applies the policy in opts (and the repository's merge.* settings).
+func MergeIntoHEADWith(ctx *Context, theirCommitID types.CommitID, theirLabel string, opts MergeOptions) (string, error) {
 	resolver := refs.NewFSResolver(ctx.Repository.VaraDir)
 
 	ourCommitID, err := resolver.Resolve("HEAD")
@@ -214,7 +225,9 @@ func MergeIntoHEAD(ctx *Context, theirCommitID types.CommitID, theirLabel string
 		if err := txn.Commit(); err != nil {
 			return "", err
 		}
-		return conflictSummary(state.Paths()), nil
+		// The conflicts and their record are safely on disk. Now let the user's
+		// merge settings decide the ones they have already decided.
+		return applyMergePolicy(ctx, state, opts)
 
 	case mergeengine.FastForward:
 		// Update the current branch ref to point to their commit.

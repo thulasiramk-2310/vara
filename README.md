@@ -37,6 +37,7 @@ VARA is built around a protocol-first architecture: SHA-256 object identity, zst
 | **Hierarchical locking** | O_EXCL file locks acquired in fixed order. Deadlock-free by construction (RFC-0006). |
 | **Repository verification** | Seven-phase integrity report: objects → trees → commits → DAG → refs → index → journal. |
 | **Three-way merge** | Myers O(ND) diff, order-independent base-aware line merge, **zdiff3** conflict markers. |
+| **Decide conflicts up front** | `merge`/`pull` with `--ours`/`--theirs`/`--union`, or per-file `[merge "rule"]` settings; anything not covered still waits for you. |
 | **Conflict lifecycle** | `resolve` (ours/theirs/union/auto), `rm`, `merge --abort`/`--continue`, conflict-aware `status` & `diff`. Content-bearing sidecar; commit gated until resolved. |
 | **Structural merge** | Opt-in per-type merge of **JSON / YAML / TOML** — independent-key edits auto-combine instead of false-conflicting (RFC-0025). |
 | **Three-layer undo** | Journal rollback → reflog restore → snapshot archive. Always a path to recovery. |
@@ -180,6 +181,33 @@ vara rm <path>           # resolve a modify/delete by removing the file
 vara merge --continue    # seal the two-parent merge commit
 vara merge --abort       # or back out entirely (guards unrelated edits)
 ```
+
+**Deciding conflicts in advance.** VARA always combines edits that do not overlap.
+What is left are places where both sides changed the same lines, and only you can say
+which side is right. You can say so up front, for one merge or for good:
+
+```sh
+vara merge feature --theirs     # keep the other branch's side of every conflict
+vara merge feature --ours       # keep yours   (--union keeps both, yours first)
+vara pull --theirs              # the same choice for a pull ("theirs" is the remote)
+```
+
+```ini
+# .vara/config: decide per file, so the rest still waits for you
+[merge "rule"]
+  *.lock = theirs               # no "/" in the pattern: matches the file name
+  CHANGELOG.md = union
+  docs/** = ours                # with a "/": matches the path; ** spans folders
+[merge]
+  strategy = manual             # what to do for files no rule covers (the default)
+```
+
+A flag beats a rule, and a rule beats the default. If every conflict is covered the
+merge is completed in one step; if any is left, it stays open for `vara resolve`. The
+output names each file and the side that was kept, and `vara undo` takes the merge back.
+Choosing a side discards the other side's version of those lines, so use it for files
+where that is acceptable (lock files, generated files, changelogs). A binary file takes
+the whole version of the side you chose, and `--union` cannot apply to binary files.
 
 Opt into **structural merge** for a type so independent edits to one file stop
 false-conflicting (JSON/YAML/TOML) — set it in `.vara/config`:

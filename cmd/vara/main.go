@@ -181,12 +181,16 @@ func main() {
 			}
 			break
 		}
-		if len(rest) < 1 {
-			fmt.Fprintln(os.Stderr, "usage: vara merge <branch>  (or: vara merge --abort | --continue)")
+		branch, mopts, err := parseMergeFlags(rest)
+		if err != nil || branch == "" {
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "merge:", err)
+			}
+			fmt.Fprintln(os.Stderr, "usage: vara merge <branch> [--ours|--theirs|--union|--manual]  (or: vara merge --abort | --continue)")
 			os.Exit(1)
 		}
 		ctx := mustCtx(true)
-		out, err := commands.RunMerge(ctx, rest[0])
+		out, err := commands.RunMergeWith(ctx, branch, mopts)
 		if err != nil {
 			die("merge: %v", err)
 		}
@@ -289,14 +293,18 @@ func main() {
 
 	case "pull":
 		ctx := mustCtx(true)
+		pargs, popts, perr := parseMergeFlagsOnly(rest)
+		if perr != nil {
+			die("pull: %v", perr)
+		}
 		remote, branch := "", ""
-		if len(rest) > 0 {
-			remote = rest[0]
+		if len(pargs) > 0 {
+			remote = pargs[0]
 		}
-		if len(rest) > 1 {
-			branch = rest[1]
+		if len(pargs) > 1 {
+			branch = pargs[1]
 		}
-		out, err := commands.RunPull(ctx, remote, branch)
+		out, err := commands.RunPullWith(ctx, remote, branch, popts)
 		if err != nil {
 			die("pull: %v", err)
 		}
@@ -558,6 +566,54 @@ func parseAuthFlags(rest []string) (commands.AuthConfig, []string) {
 	return cfg, args
 }
 
+// parseMergeFlagsOnly splits the arguments of `vara merge` / `vara pull` into the
+// plain arguments and the conflict-handling choice. Only one choice may be given.
+func parseMergeFlagsOnly(rest []string) ([]string, commands.MergeOptions, error) {
+	var opts commands.MergeOptions
+	var args []string
+	chosen := ""
+	pick := func(flag string) error {
+		if chosen != "" && chosen != flag {
+			return fmt.Errorf("choose one of --ours, --theirs, --union or --manual, not both %s and %s", chosen, flag)
+		}
+		chosen = flag
+		return nil
+	}
+	for _, a := range rest {
+		switch a {
+		case "--ours", "--theirs", "--union":
+			if err := pick(a); err != nil {
+				return nil, opts, err
+			}
+			s, _ := commands.ParseMergeStrategy(strings.TrimPrefix(a, "--"))
+			opts.Strategy = s
+		case "--manual":
+			if err := pick(a); err != nil {
+				return nil, opts, err
+			}
+			opts.Manual = true
+		default:
+			if strings.HasPrefix(a, "-") {
+				return nil, opts, fmt.Errorf("unknown flag %q", a)
+			}
+			args = append(args, a)
+		}
+	}
+	return args, opts, nil
+}
+
+// parseMergeFlags reads `vara merge <branch> [--ours|--theirs|--union|--manual]`.
+func parseMergeFlags(rest []string) (string, commands.MergeOptions, error) {
+	args, opts, err := parseMergeFlagsOnly(rest)
+	if err != nil {
+		return "", opts, err
+	}
+	if len(args) != 1 {
+		return "", opts, nil
+	}
+	return args[0], opts, nil
+}
+
 // parseResolveFlags parses `vara resolve` options: a strategy flag
 // (--ours/--theirs/--union/--auto), --list, and any positional pathspecs.
 func parseResolveFlags(rest []string) (commands.ResolveArgs, error) {
@@ -791,7 +847,7 @@ branch's latest commit, and the index is updated accordingly.
 A snapshot of the current working tree is taken before switching so that
 'vara undo' can restore the pre-switch state.
 `,
-	"merge": `usage: vara merge <branch>
+	"merge": `usage: vara merge <branch> [--ours | --theirs | --union | --manual]
        vara merge --continue [-m <msg>]
        vara merge --abort
 
@@ -801,6 +857,29 @@ Merge <branch> into the current branch.
   Three-way:    Myers diff + diff3 merge. Files with conflicting edits
                 receive conflict markers. Run 'vara resolve' then
                 'vara merge --continue' (or 'vara commit') after a conflict.
+
+Choosing in advance. Edits that do not overlap are always combined for you. Where
+both sides changed the same lines, only you can say which is right, so by default
+those are left marked for 'vara resolve'. To decide up front:
+
+  --ours        keep your side of every conflicting hunk
+  --theirs      keep the other branch's side
+  --union       keep both sides, yours first (good for append-only files)
+  --manual      leave every conflict for you, ignoring the settings below
+
+or set it once in the repository config (.vara/config), per file if you like:
+
+  [merge]
+      strategy = manual            # ours | theirs | union | manual (default manual)
+  [merge "rule"]
+      *.lock = theirs              # a pattern with no "/" matches the file name
+      CHANGELOG.md = union
+      docs/** = ours               # with "/" it matches the path; ** spans folders
+
+A flag beats a rule, and a rule beats the default. When every conflict is covered
+the merge is completed; if any are left, the merge stays open for 'vara resolve'.
+The output names each file and the side that was kept. The merge can be taken back
+with 'vara undo'. In 'vara pull', "ours" is your branch and "theirs" is the remote's.
 
   --continue    conclude an in-progress merge as a two-parent merge commit,
                 once every conflict is resolved. Refuses, naming them, while
@@ -925,14 +1004,16 @@ remote-tracking references refs/remotes/<remote>/* (RFC-0014 §9.2).
 Local branches are NOT modified. Use 'vara merge' or 'vara pull' to
 integrate fetched changes.
 `,
-	"pull": `usage: vara pull [<remote>] [<branch>]
+	"pull": `usage: vara pull [<remote>] [<branch>] [--ours | --theirs | --union | --manual]
 
 Fetch from <remote> (default: origin) and integrate the corresponding
 remote-tracking branch into the current branch (RFC-0014 §9.3).
 
   Fast-forward: the current branch is advanced and the working tree updated.
   Divergent:    a three-way merge is performed (same engine as 'vara merge').
-                Conflicts leave markers to resolve and commit.
+                Conflicts leave markers to resolve and commit, unless you chose
+                a side (--ours, --theirs, --union) or set merge rules; see
+                'vara help merge'.
 `,
 	"push": `usage: vara push [<remote>] [<branch>] [--force]
 

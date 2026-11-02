@@ -318,6 +318,12 @@ func RunFetch(ctx *Context, remoteName string) (string, error) {
 // RunPull implements `vara pull <remote> [<branch>]` (RFC-0014 §9.3):
 // fetch, then integrate refs/remotes/<remote>/<branch> into the current branch.
 func RunPull(ctx *Context, remoteName, branch string) (string, error) {
+	return RunPullWith(ctx, remoteName, branch, MergeOptions{})
+}
+
+// RunPullWith is RunPull with a say in how merge conflicts are handled. In a pull,
+// "ours" is your local branch and "theirs" is what came from the remote.
+func RunPullWith(ctx *Context, remoteName, branch string, opts MergeOptions) (string, error) {
 	if remoteName == "" {
 		remoteName = "origin"
 	}
@@ -348,7 +354,7 @@ func RunPull(ctx *Context, remoteName, branch string) (string, error) {
 		ctx.Index = idx
 	}
 
-	mergeOut, err := MergeIntoHEAD(ctx, target, remoteName+"/"+branch)
+	mergeOut, err := MergeIntoHEADWith(ctx, target, remoteName+"/"+branch, opts)
 	if err != nil {
 		return "", err
 	}

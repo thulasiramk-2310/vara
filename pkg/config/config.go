@@ -88,6 +88,27 @@ func (c *Config) Get(name, subname, key string) (string, bool) {
 }
 
 // Set assigns a value, creating the section if necessary.
+// Entry is one key/value pair of a section.
+type Entry struct {
+	Key   string // lower-cased, as stored
+	Value string
+}
+
+// Entries returns the keys and values of a section in file order, or nil when
+// the section does not exist. It exists so a section whose keys are patterns
+// (such as [merge "rule"]) can be read without knowing the keys in advance.
+func (c *Config) Entries(name, subname string) []Entry {
+	s := c.find(name, subname)
+	if s == nil {
+		return nil
+	}
+	out := make([]Entry, 0, len(s.order))
+	for _, k := range s.order {
+		out = append(out, Entry{Key: k, Value: s.keys[k]})
+	}
+	return out
+}
+
 func (c *Config) Set(name, subname, key, value string) {
 	c.findOrCreate(name, subname).set(key, value)
 }
