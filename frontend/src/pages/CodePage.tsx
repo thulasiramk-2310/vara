@@ -6,6 +6,8 @@ import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../hooks/useToast';
 import { routes } from '../routes';
 import { Loading, ErrorState } from '../components/common/States';
+import { BranchSwitcher, useRepoRef } from '../components/common/BranchSwitcher';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { Markdown } from '../components/common/Markdown';
 import { RepoGlyph } from '../components/common/RepoGlyph';
 import { inferLanguage } from '../utils/repo';
@@ -29,9 +31,11 @@ export const CodePage: React.FC = () => {
   const repo = params.repo || '';
   const path = params['*'] || '';
   const { copy } = useToast();
+  const ref = useRepoRef();
+  usePageTitle(path || undefined, repo);
 
   const sum = useAsync(() => api.summary(repo), [repo]);
-  const tree = useAsync(() => api.tree(repo, path), [repo, path]);
+  const tree = useAsync(() => api.tree(repo, path, ref), [repo, path, ref]);
 
   const entries = tree.data ? sortEntries(tree.data.entries) : [];
   const language = tree.data ? inferLanguage(tree.data.entries.filter((e) => e.type !== 'dir').map((e) => e.name)) : null;
@@ -41,18 +45,18 @@ export const CodePage: React.FC = () => {
   const isMd = !!readmeName && /\.(md|markdown|mdown)$/i.test(readmeName);
   const readme = useAsync(async () => {
     if (!readmeName) return null;
-    const b = await api.blob(repo, readmeName);
+    const b = await api.blob(repo, readmeName, ref);
     return b.binary ? null : b;
-  }, [repo, path, readmeName]);
+  }, [repo, path, readmeName, ref]);
 
   const cloneCmd = `vara clone ${window.location.origin}/${repo}`;
 
   const segs = path.split('/').filter(Boolean);
-  const crumb = [{ label: repo, to: routes.tree(repo, '') }];
+  const crumb = [{ label: repo, to: routes.tree(repo, '', ref) }];
   let acc = '';
   segs.forEach((s) => {
     acc = acc ? acc + '/' + s : s;
-    crumb.push({ label: s, to: routes.tree(repo, acc) });
+    crumb.push({ label: s, to: routes.tree(repo, acc, ref) });
   });
 
   const cardStyle: React.CSSProperties = { background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '14px', boxShadow: 'var(--shadow)' };
@@ -97,6 +101,9 @@ export const CodePage: React.FC = () => {
         {/* Main column: files + README */}
         <div style={{ display: 'grid', gap: '16px', minWidth: 0, alignContent: 'start' }}>
           {/* Breadcrumb */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+          <BranchSwitcher repo={repo} to={(r) => routes.tree(repo, path, r)} />
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', fontFamily: 'var(--font-mono)', fontSize: '13.5px' }}>
             {crumb.map((c, i) => (
               <React.Fragment key={c.to}>
@@ -114,14 +121,14 @@ export const CodePage: React.FC = () => {
           {tree.loading ? (
             <Loading />
           ) : tree.error ? (
-            <ErrorState error={tree.error} />
+            <ErrorState error={tree.error} onRetry={tree.retry} />
           ) : (
             <div style={{ ...cardStyle, overflow: 'hidden' }}>
               {entries.length ? (
                 entries.map((e, i) => {
                   const child = path ? `${path}/${e.name}` : e.name;
                   const isDir = e.type === 'dir';
-                  const to = isDir ? routes.tree(repo, child) : routes.blob(repo, child);
+                  const to = isDir ? routes.tree(repo, child, ref) : routes.blob(repo, child, ref);
                   return (
                     <Link key={e.name} to={to} style={{ display: 'flex', alignItems: 'center', gap: '11px', padding: '10px 16px', textDecoration: 'none', color: 'var(--text)', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
                       {isDir ? <Folder size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} /> : <FileIcon size={16} style={{ color: 'var(--dim)', flexShrink: 0 }} />}

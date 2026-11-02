@@ -6,6 +6,8 @@ import { useToast } from '../hooks/useToast';
 import { routes } from '../routes';
 import { Glyph } from '../components/common/Glyphs';
 import { Loading, ErrorState } from '../components/common/States';
+import { BranchSwitcher, useRepoRef } from '../components/common/BranchSwitcher';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 const chipBtn: React.CSSProperties = {
   background: 'var(--chip)',
@@ -29,17 +31,19 @@ export const BlobPage: React.FC = () => {
   const path = params['*'] || '';
   const { copy } = useToast();
 
-  const blob = useAsync(() => api.blob(repo, path), [repo, path]);
-  const rawHref = api.rawUrl(repo, path);
+  const ref = useRepoRef();
+  const blob = useAsync(() => api.blob(repo, path, ref), [repo, path, ref]);
+  const rawHref = api.rawUrl(repo, path, ref);
   const fname = path.split('/').pop() || path;
+  usePageTitle(fname, repo);
 
   const segs = path.split('/').filter(Boolean);
   const dirPath = segs.slice(0, -1);
-  const crumb: Array<{ label: string; to?: string }> = [{ label: repo, to: routes.tree(repo, '') }];
+  const crumb: Array<{ label: string; to?: string }> = [{ label: repo, to: routes.tree(repo, '', ref) }];
   let acc = '';
   dirPath.forEach((s) => {
     acc = acc ? acc + '/' + s : s;
-    crumb.push({ label: s, to: routes.tree(repo, acc) });
+    crumb.push({ label: s, to: routes.tree(repo, acc, ref) });
   });
   crumb.push({ label: fname });
 
@@ -52,6 +56,7 @@ export const BlobPage: React.FC = () => {
 
   return (
     <div style={{ animation: 'v-fade .2s ease', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '1020px', margin: '0 auto' }}>
+      <BranchSwitcher repo={repo} to={(r) => routes.blob(repo, path, r)} />
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', fontFamily: 'var(--font-mono)', fontSize: '13.5px' }}>
         {crumb.map((c, i) => (
           <React.Fragment key={i}>
@@ -68,7 +73,7 @@ export const BlobPage: React.FC = () => {
       {blob.loading ? (
         <Loading />
       ) : blob.error ? (
-        <ErrorState error={blob.error} />
+        <ErrorState error={blob.error} onRetry={blob.retry} />
       ) : blob.data ? (
         <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 14px', borderBottom: '1px solid var(--border)', background: 'var(--inset)', flexWrap: 'wrap' }}>

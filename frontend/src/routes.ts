@@ -5,6 +5,7 @@
 import { encPath } from './api/client';
 
 const r = encodeURIComponent;
+const refQ = (ref: string) => (ref ? `?ref=${r(ref)}` : '');
 
 export const routes = {
   landing: '/',
@@ -20,8 +21,9 @@ export const routes = {
   settings: '/settings',
 
   repo: (repo: string) => `/r/${r(repo)}`,
-  tree: (repo: string, path = '') => `/r/${r(repo)}/tree${path ? '/' + encPath(path) : ''}`,
-  blob: (repo: string, path: string) => `/r/${r(repo)}/blob/${encPath(path)}`,
+  // `ref` is a branch or commit; empty means the default branch and adds nothing.
+  tree: (repo: string, path = '', ref = '') => `/r/${r(repo)}/tree${path ? '/' + encPath(path) : ''}${refQ(ref)}`,
+  blob: (repo: string, path: string, ref = '') => `/r/${r(repo)}/blob/${encPath(path)}${refQ(ref)}`,
   commits: (repo: string) => `/r/${r(repo)}/commits`,
   commit: (repo: string, id: string) => `/r/${r(repo)}/commit/${r(id)}`,
   search: (repo: string) => `/r/${r(repo)}/search`,

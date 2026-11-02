@@ -33,7 +33,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     (opts.headers as Record<string, string>)['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
-  const resp = await fetch(path, opts);
+  let resp: Response;
+  try {
+    resp = await fetch(path, opts);
+  } catch {
+    // fetch rejects only when no response arrived at all: offline, DNS, refused.
+    throw apiError('Cannot reach the server.', 0, 'NETWORK');
+  }
   if (resp.status === 204) return null as unknown as T;
 
   const text = await resp.text();
@@ -190,6 +196,8 @@ export interface CommitSearchResponse {
 
 // ---- endpoints --------------------------------------------------------------
 
+const refQuery = (ref: string) => (ref ? `?ref=${enc(ref)}` : '');
+
 const base = (repo: string) => `/_vara/repositories/${enc(repo)}`;
 
 export const api = {
@@ -211,13 +219,14 @@ export const api = {
 
   branches: (repo: string) => request<BranchesResponse>('GET', `${base(repo)}/branches`),
 
-  tree: (repo: string, path: string) =>
-    request<TreeResponse>('GET', `${base(repo)}/tree/${encPath(path)}`),
+  // `ref` is a branch name or commit id; omitted, the server uses the default branch.
+  tree: (repo: string, path: string, ref = '') =>
+    request<TreeResponse>('GET', `${base(repo)}/tree/${encPath(path)}${refQuery(ref)}`),
 
-  blob: (repo: string, path: string) =>
-    request<BlobResponse>('GET', `${base(repo)}/blob/${encPath(path)}`),
+  blob: (repo: string, path: string, ref = '') =>
+    request<BlobResponse>('GET', `${base(repo)}/blob/${encPath(path)}${refQuery(ref)}`),
 
-  rawUrl: (repo: string, path: string) => `${base(repo)}/raw/${encPath(path)}`,
+  rawUrl: (repo: string, path: string, ref = '') => `${base(repo)}/raw/${encPath(path)}${refQuery(ref)}`,
 
   commits: (repo: string, limit = 30, before = '') =>
     request<CommitsResponse>(
