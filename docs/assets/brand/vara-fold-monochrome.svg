@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="60 15 870 950" role="img" aria-label="VARA — single-color logo mark"><title>VARA — single-color logo mark</title>
+<defs>
+  <linearGradient id="ivoryTop" x1="0" y1="0" x2=".78" y2="1" objectBoundingBox="true">
+    <stop offset="0" stop-color="#FFFDF7"/><stop offset=".37" stop-color="#F0E8DE"/>
+    <stop offset=".78" stop-color="#D8C9BD"/><stop offset="1" stop-color="#9C8B82"/>
+  </linearGradient>
+  <linearGradient id="ivoryFront" x1=".06" y1=".1" x2=".95" y2=".8">
+    <stop offset="0" stop-color="#FFFCF6"/><stop offset=".33" stop-color="#ECE3D8"/>
+    <stop offset=".65" stop-color="#CBB8AB"/><stop offset="1" stop-color="#86736A"/>
+  </linearGradient>
+  <linearGradient id="redBack" x1=".17" y1=".9" x2=".90" y2=".17">
+    <stop offset="0" stop-color="#540A12"/><stop offset=".35" stop-color="#A31323"/>
+    <stop offset=".68" stop-color="#8E0D19"/><stop offset="1" stop-color="#3F050B"/>
+  </linearGradient>
+  <linearGradient id="redRight" x1=".15" y1=".1" x2=".96" y2=".87">
+    <stop offset="0" stop-color="#2F0306"/><stop offset=".45" stop-color="#740913"/>
+    <stop offset=".83" stop-color="#C0212A"/><stop offset="1" stop-color="#471014"/>
+  </linearGradient>
+  <linearGradient id="redLeft" x1="0" y1=".16" x2=".88" y2=".93">
+    <stop offset="0" stop-color="#370409"/><stop offset=".55" stop-color="#96131C"/>
+    <stop offset="1" stop-color="#4F0B11"/>
+  </linearGradient>
+  <linearGradient id="mono" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#FDF8F0"/><stop offset="1" stop-color="#E5DCD1"/>
+  </linearGradient>
+  <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="9"/>
+  </filter>
+  <filter id="tinyShadow" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="3"/>
+  </filter>
+</defs>
+<g style="color:#161718">
+<path d="M 145 446 Q 145 410 185 380 L 516 112 Q 576 63 607 119 L 607 254 Q 605 292 567 321 L 199 581 Q 145 619 145 663 Z" fill="currentColor"/>
+<path d="M 838 362 Q 850 376 850 405 L 850 550 Q 850 593 806 626 L 493 858 Q 413 921 413 840 L 413 670 Q 413 626 457 594 L 802 402 Q 838 379 838 362 Z" fill="currentColor"/>
+<path d="M 615 128 L 806 294 Q 847 329 835 367 Q 818 405 646 508 Q 653 374 575 334 Q 616 285 615 244 Z" fill="currentColor" opacity=".5"/>
+<path d="M 150 634 Q 146 663 191 695 L 399 866 Q 410 880 426 883 Q 401 844 399 738 Q 370 655 382 489 L 196 572 Q 150 607 150 634 Z" fill="currentColor" opacity=".5"/>
+</g>
+</svg>

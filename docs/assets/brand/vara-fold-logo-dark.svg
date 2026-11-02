@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 270" role="img" aria-label="VARA — ivory and crimson premium logo for dark backgrounds"><title>VARA — ivory and crimson premium logo for dark backgrounds</title>
+<defs>
+  <linearGradient id="ivoryTop" x1="0" y1="0" x2=".78" y2="1" objectBoundingBox="true">
+    <stop offset="0" stop-color="#FFFDF7"/><stop offset=".37" stop-color="#F0E8DE"/>
+    <stop offset=".78" stop-color="#D8C9BD"/><stop offset="1" stop-color="#9C8B82"/>
+  </linearGradient>
+  <linearGradient id="ivoryFront" x1=".06" y1=".1" x2=".95" y2=".8">
+    <stop offset="0" stop-color="#FFFCF6"/><stop offset=".33" stop-color="#ECE3D8"/>
+    <stop offset=".65" stop-color="#CBB8AB"/><stop offset="1" stop-color="#86736A"/>
+  </linearGradient>
+  <linearGradient id="redBack" x1=".17" y1=".9" x2=".90" y2=".17">
+    <stop offset="0" stop-color="#540A12"/><stop offset=".35" stop-color="#A31323"/>
+    <stop offset=".68" stop-color="#8E0D19"/><stop offset="1" stop-color="#3F050B"/>
+  </linearGradient>
+  <linearGradient id="redRight" x1=".15" y1=".1" x2=".96" y2=".87">
+    <stop offset="0" stop-color="#2F0306"/><stop offset=".45" stop-color="#740913"/>
+    <stop offset=".83" stop-color="#C0212A"/><stop offset="1" stop-color="#471014"/>
+  </linearGradient>
+  <linearGradient id="redLeft" x1="0" y1=".16" x2=".88" y2=".93">
+    <stop offset="0" stop-color="#370409"/><stop offset=".55" stop-color="#96131C"/>
+    <stop offset="1" stop-color="#4F0B11"/>
+  </linearGradient>
+  <linearGradient id="mono" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#FDF8F0"/><stop offset="1" stop-color="#E5DCD1"/>
+  </linearGradient>
+  <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="9"/>
+  </filter>
+  <filter id="tinyShadow" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="3"/>
+  </filter>
+</defs>
+<g transform="translate(0,-8) scale(.285)">
+<g id="vara-fold-emblem">
+  <!-- ribbon shadow is entirely vector geometry, except for a Gaussian shadow filter -->
+  <path d="M 134 487 C 138 432 158 410 193 380 L 520 110 Q 561 78 600 112 L 823 293 Q 857 321 856 374 L 856 565 Q 849 621 808 649 L 491 875 Q 451 908 413 884 L 166 693 Q 129 661 134 610 Z" fill="#050404" opacity=".45" filter="url(#softShadow)" transform="translate(4 12)"/>
+  <!-- inside left return, the deep red surface recedes into the middle -->
+  <path d="M 146 576 Q 141 611 146 650 C 147 672 163 692 194 714 L 414 884 Q 447 912 486 866 L 513 805 Q 446 783 414 713 C 376 651 365 579 382 494 L 416 381 L 246 514 Z" fill="url(#redLeft)"/>
+  <!-- back/right inner face -->
+  <path d="M 572 95 C 594 97 607 108 631 127 L 811 288 Q 850 317 846 360 Q 840 399 803 425 L 644 529 C 651 476 645 421 622 386 C 606 358 575 343 553 327 C 583 304 607 276 608 239 L 608 157 Z" fill="url(#redRight)"/>
+  <!-- innermost red edge, accentuating cutout and depth -->
+  <path d="M 383 451 C 383 398 425 364 459 348 C 497 333 535 335 554 347 C 499 346 454 391 444 449 C 426 557 449 637 503 681 C 432 652 378 569 383 451 Z" fill="#3C030A" opacity=".54"/>
+  <!-- long top/front folded material -->
+  <path d="M 141 453 C 141 417 154 398 188 370 L 515 108 C 546 84 574 79 591 98 C 606 112 610 130 609 154 L 608 257 C 608 285 592 310 562 331 L 207 582 C 164 613 143 638 143 677 Z" fill="url(#ivoryTop)"/>
+  <path d="M 144 660 C 153 629 176 604 205 583 L 564 330 C 594 309 607 283 609 258" fill="none" stroke="#FFFDF4" stroke-width="4.1" opacity=".7"/>
+  <path d="M 145 666 C 142 632 156 605 191 577" fill="none" stroke="#66534F" stroke-width="6" opacity=".45"/>
+  <!-- front fold; inner left edge stays readable at small sizes -->
+  <path d="M 834 349 C 846 359 850 377 850 407 L 850 554 C 850 589 837 614 801 642 L 500 861 C 467 887 445 903 423 885 C 412 876 411 859 413 837 L 413 675 C 413 637 425 615 457 591 L 803 401 C 826 387 835 370 834 349 Z" fill="url(#ivoryFront)"/>
+  <path d="M 416 846 L 416 681 C 416 642 434 618 462 597 L 807 405 C 836 385 839 372 837 355" fill="none" stroke="#FFF8E9" stroke-width="5" opacity=".76"/>
+  <path d="M 425 879 C 441 899 469 885 500 862 L 803 641 Q 847 611 850 565" stroke="#5B4541" stroke-width="4" opacity=".35" fill="none"/>
+</g></g>
+<path d="M 292 22 L 292 228" stroke="#B8AAA2" stroke-width="1.2" opacity=".6" />
+<g transform="translate(326,65) scale(.64)" fill="url(#mono)">
+<path d="M 0 0 H 43 L 98 102 L 152 0 H 194 L 123 133 Q 114 149 98 149 Q 82 149 73 133 Z" />
+<path d="M 205 146 L 283 9 Q 289 -2 298 0 Q 308 0 314 11 L 393 146 H 351 L 300 54 L 248 146 Z" />
+<path d="M 409 0 H 510 C 560 0 580 25 580 63 C 580 98 558 114 533 115 L 594 146 H 542 L 474 76 H 514 C 532 76 540 68 540 56 C 540 43 529 36 511 36 H 450 V 146 H 409 Z" />
+<path d="M 611 146 L 689 9 Q 695 -2 704 0 Q 713 0 720 11 L 799 146 H 757 L 705 54 L 654 146 Z" />
+</g>
+<text x="331" y="205" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="450" letter-spacing="4.6" fill="#C8C0B9">THE DEVELOPER VERSION CONTROL PLATFORM</text>
+</svg>
