@@ -426,3 +426,34 @@ textarea:focus-visible {
 .hljs-meta, .hljs-deletion, .hljs-link, .hljs-subst { color: var(--tok-meta); }
 .hljs-strong { font-weight: 700; }
 .hljs-emphasis { font-style: italic; }
+
+/* File page: a folder tree beside the file. On a phone the tree sits above the
+   file instead of beside it, and is closed unless the reader opens it. */
+.v-blob {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: var(--s-5);
+  align-items: start;
+}
+.v-blob[data-tree="false"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.v-blob-tree {
+  position: sticky;
+  top: calc(var(--header-h) + 46px + var(--s-4));
+  max-height: calc(100vh - 150px);
+  overflow: auto;
+  padding: var(--s-2);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+@media (max-width: 900px) {
+  .v-blob {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .v-blob-tree {
+    position: static;
+    max-height: 40vh;
+  }
+}

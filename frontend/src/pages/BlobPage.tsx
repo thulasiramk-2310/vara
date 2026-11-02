@@ -9,6 +9,9 @@ import { Loading, ErrorState } from '../components/common/States';
 import { BranchSwitcher, useRepoRef } from '../components/common/BranchSwitcher';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { highlightLines, languageFor, HighlightedLines } from '../utils/syntax';
+import { FileTree } from '../components/common/FileTree';
+import { FileCommitBar } from '../components/common/FileCommitBar';
+import { useStoredFlag } from '../hooks/useStoredFlag';
 
 const chipBtn: React.CSSProperties = {
   background: 'var(--chip)',
@@ -37,6 +40,12 @@ export const BlobPage: React.FC = () => {
   const rawHref = api.rawUrl(repo, path, ref);
   const fname = path.split('/').pop() || path;
   usePageTitle(fname, repo);
+
+  // Two reading preferences, remembered between visits. The file tree starts
+  // closed on a phone, where it would push the file below the fold.
+  const [wrap, setWrap] = useStoredFlag('vara.wrap', false);
+  const narrow = typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 900px)').matches;
+  const [treeOpen, setTreeOpen] = useStoredFlag('vara.tree', !narrow);
 
   const segs = path.split('/').filter(Boolean);
   const dirPath = segs.slice(0, -1);
@@ -70,8 +79,19 @@ export const BlobPage: React.FC = () => {
   })();
 
   return (
-    <div style={{ animation: 'v-fade .2s ease', display: 'flex', flexDirection: 'column', gap: '16px', margin: '0 auto' }}>
-      <BranchSwitcher repo={repo} to={(r) => routes.blob(repo, path, r)} />
+    <div className="v-blob" data-tree={treeOpen}>
+      {treeOpen && (
+        <aside className="v-blob-tree">
+          <FileTree repo={repo} reference={ref} active={path} />
+        </aside>
+      )}
+    <div style={{ animation: 'v-fade .2s ease', display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <button type="button" aria-pressed={treeOpen} onClick={() => setTreeOpen(!treeOpen)} style={chipBtn}>
+          Files
+        </button>
+        <BranchSwitcher repo={repo} to={(r) => routes.blob(repo, path, r)} />
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', fontFamily: 'var(--font-mono)', fontSize: '13.5px' }}>
         {crumb.map((c, i) => (
           <React.Fragment key={i}>
@@ -85,6 +105,8 @@ export const BlobPage: React.FC = () => {
         ))}
       </div>
 
+      {!blob.error && <FileCommitBar repo={repo} path={path} reference={ref} />}
+
       {blob.loading ? (
         <Loading />
       ) : blob.error ? (
@@ -97,10 +119,15 @@ export const BlobPage: React.FC = () => {
             {!blob.data.binary && <span style={{ color: 'var(--faint)', fontSize: '12.5px' }}>{lines.length} lines</span>}
             <span style={{ color: 'var(--faint)', fontSize: '12.5px' }}>{blob.data.size} B</span>
             <div style={{ flex: 1 }} />
+            {!blob.data.binary && !blob.data.truncated && (
+              <button type="button" aria-pressed={wrap} onClick={() => setWrap(!wrap)} style={chipBtn}>
+                Wrap lines
+              </button>
+            )}
             <button onClick={() => copy(path, 'Path')} style={chipBtn}>Copy path</button>
             <a href={rawHref} style={chipBtn}>Raw</a>
             <a href={rawHref} download style={chipBtn}>Download</a>
-            <Link to={routes.commits(repo, path)} style={chipBtn}>History</Link>
+            <Link to={routes.commits(repo, path, ref)} style={chipBtn}>History</Link>
           </div>
 
           {blob.data.binary ? (
@@ -121,7 +148,7 @@ export const BlobPage: React.FC = () => {
                       <td style={{ width: '1%', textAlign: 'right', padding: '0 14px 0 16px', color: 'var(--faint)', userSelect: 'none', borderRight: '1px solid var(--border)' }}>
                         <a href={`#L${i + 1}`} style={{ color: 'inherit', textDecoration: 'none' }}>{i + 1}</a>
                       </td>
-                      <td style={{ padding: '0 16px', whiteSpace: 'pre', color: 'var(--text)' }}>
+                      <td style={{ padding: '0 16px', whiteSpace: wrap ? 'pre-wrap' : 'pre', overflowWrap: wrap ? 'anywhere' : 'normal', color: 'var(--text)' }}>
                         {colored && colored[i] && colored[i].length
                           ? colored[i].map((t, k) => (t.cls ? <span key={k} className={t.cls}>{t.text}</span> : t.text))
                           : ln === '' ? ' ' : ln}
@@ -134,6 +161,7 @@ export const BlobPage: React.FC = () => {
           )}
         </div>
       ) : null}
+    </div>
     </div>
   );
 };

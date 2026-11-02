@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Folder, File as FileIcon, GitBranch, GitCommit, Hash, Copy, Clock, BookText } from 'lucide-react';
-import { api, short, when, TreeEntry } from '../api/client';
+import { api, short, when } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useToast } from '../hooks/useToast';
 import { routes } from '../routes';
@@ -11,15 +11,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { Markdown } from '../components/common/Markdown';
 import { RepoGlyph } from '../components/common/RepoGlyph';
 import { inferLanguage } from '../utils/repo';
-
-function sortEntries(entries: TreeEntry[]): TreeEntry[] {
-  return entries.slice().sort((a, b) => {
-    const ad = a.type === 'dir';
-    const bd = b.type === 'dir';
-    if (ad !== bd) return ad ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
-}
+import { sortEntries } from '../utils/tree';
 
 const README_RE = /^readme(\.(md|markdown|mdown|txt))?$/i;
 
