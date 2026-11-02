@@ -179,3 +179,22 @@ Caddy sets `X-Forwarded-Proto` automatically and provisions TLS for you.
 > a proxy you control — a client that can reach the Hub directly could otherwise
 > spoof the header. Bind the Hub to `localhost` (or an internal interface) and let
 > only the proxy reach it.
+
+## Failed sign-ins are slowed down
+
+Guessing a password gets slower, not free. After five failed attempts for an
+account from one address (HTTP Basic counts the same as `vara login`), further
+attempts from that address for that account are refused with `429` and a
+`Retry-After` header, for 30 seconds, doubling with every further failure up to
+15 minutes. A successful sign-in clears the count. One address trying many
+different accounts is slowed after 20 failures in total.
+
+Things to know:
+
+- The count is kept in memory, so restarting the Hub forgives everyone.
+- The address is the connection's own address. Behind a reverse proxy, every
+  visitor shares the proxy's address, so the limit applies to all of them
+  together for a given account. `X-Forwarded-For` is deliberately not trusted,
+  because anyone can send it. If you need per-visitor limits behind a proxy,
+  also rate-limit at the proxy.
+- This slows guessing; it does not replace a strong password.

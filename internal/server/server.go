@@ -95,6 +95,7 @@ type Server struct {
 	accounts *identity.AccountManager
 	caps     []string
 	methods  []string
+	guard    *guessGuard
 }
 
 // Handler returns an anonymous, allow-all handler (RFC-0016 behavior).
@@ -128,6 +129,7 @@ func HandlerWithOptions(root string, opts Options) http.Handler {
 		accounts: opts.Accounts,
 		caps:     caps,
 		methods:  opts.Methods,
+		guard:    newGuessGuard(),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{repo}"+protocol.PathInfoRefs, s.handleListRefs)
@@ -375,10 +377,21 @@ func (s *Server) authn(w http.ResponseWriter, r *http.Request) (identity.Identit
 		s.writeUnauthenticated(w, err)
 		return identity.Identity{}, false
 	}
+	// Guessing a Basic password is as much a guessing attack as logging in: slow it the same way.
+	basic := cred != nil && cred.Scheme == identity.SchemeBasic
+	if basic && s.guard.throttled(w, r, cred.User) {
+		return identity.Identity{}, false
+	}
 	id, err := s.idsrc.Authenticate(cred)
 	if err != nil {
+		if basic {
+			s.guard.failed(r, cred.User)
+		}
 		s.writeUnauthenticated(w, err)
 		return identity.Identity{}, false
+	}
+	if basic {
+		s.guard.succeeded(r, cred.User)
 	}
 	return id, true
 }

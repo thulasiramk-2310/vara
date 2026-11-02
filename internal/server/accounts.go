@@ -27,12 +27,17 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, protocol.CodeMalformed, "decode login: "+err.Error())
 		return
 	}
+	if s.guard.throttled(w, r, req.Username) {
+		return
+	}
 	secret, expiresAt, err := s.accounts.Login(req.Username, req.Password)
 	if err != nil {
+		s.guard.failed(r, req.Username)
 		// Always the same 401 regardless of absent/disabled/wrong-password (§12).
 		writeError(w, http.StatusUnauthorized, protocol.CodeUnauthenticated, "invalid credentials")
 		return
 	}
+	s.guard.succeeded(r, req.Username)
 	// Browser cookie mode (RFC-0021 §7): ?cookie=1 sets the session secret in an
 	// httpOnly cookie and withholds it from the body, so page JS never sees it.
 	if r.URL.Query().Get("cookie") == "1" {
