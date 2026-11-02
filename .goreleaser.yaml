@@ -42,6 +42,17 @@ archives:
       - LICENSE
       - docs/DEPLOYMENT.md
 
+  # The Hub web interface, built before GoReleaser runs (see release.yml). It is the
+  # same on every platform, so it is one archive: unpack it and pass the folder to
+  # `vara serve --hub`.
+  - id: hub-ui
+    formats: [tar.gz]
+    meta: true
+    name_template: "vara-hub-ui_{{ .Version }}"
+    # Paths are kept, so the archive unpacks to hub-ui/index.html and hub-ui/assets/...
+    files:
+      - "hub-ui/**/*"
+
 checksum:
   name_template: checksums.txt
   algorithm: sha256

@@ -43,3 +43,6 @@ Thumbs.db
 
 # Benchmark results
 benchmark-results.txt
+
+# Output of scripts/build-hub-ui.sh (built in CI for releases)
+/hub-ui/

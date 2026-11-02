@@ -100,7 +100,13 @@ vara account create \
   --username admin --password 'choose-a-strong-password'
 
 sh scripts/build-hub-ui.sh        # builds the web interface into ./hub-ui (needs Node.js 20+)
+```
 
+Releases made after this change also publish the built interface as
+`vara-hub-ui_<version>.tar.gz`. Unpack it and pass the `hub-ui` folder to `--hub`, and Node.js is
+not needed. (Releases up to v0.4.4 do not include it; build it from source as above.)
+
+```sh
 vara serve \
   --addr :8080 \
   --root     srv/repos \
