@@ -375,6 +375,8 @@ func main() {
 					cfg.HubDir = rest[i+1]
 					i++
 				}
+			case "--insecure-allow-all":
+				cfg.AllowAnonymousAll = true
 			case "--basic":
 				if i+1 < len(rest) {
 					user, secret, ok := splitCred(rest[i+1])
@@ -945,6 +947,7 @@ The remote rejects a non-fast-forward update unless --force is given:
 A rejected push changes nothing on either side.
 `,
 	"serve": `usage: vara serve [--addr <host:port>] [--root <dir>] [--policy <dir>]
+                  [--insecure-allow-all]
                   [--meta <dir>] [--basic <user:secret>]... [--bearer <token:subject>]...
 
 Serve the VARA repositories under <root> (default: current directory) over
@@ -987,9 +990,10 @@ Hub UI (RFC-0021):
                             read API (repo summary/branches/commits) and browser
                             cookie sessions. Serve behind TLS in production.
 
-With neither identity nor policy configured this is an anonymous, allow-all
-server; do NOT expose that as a write endpoint on an untrusted network. Press
-Ctrl-C to shut down gracefully.
+Without --policy every caller may read AND write every repository. So that is
+refused on any address other machines can reach (including the default :8080)
+unless you pass --insecure-allow-all. Bind to 127.0.0.1 to run it locally.
+Press Ctrl-C to shut down gracefully.
 `,
 	"repo": `usage: vara repo <create|delete|rename|list|show> <server-url> [args]
                  [--basic <user:secret>] [--bearer <token>]

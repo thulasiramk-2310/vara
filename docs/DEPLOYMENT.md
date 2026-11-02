@@ -34,7 +34,7 @@ VARA_VERSION=v0.3.0 VARA_INSTALL="$HOME/.local/bin" \
 
 ### With the Go toolchain
 
-If you have Go 1.21+ installed:
+If you have Go 1.25+ installed:
 
 ```sh
 go install github.com/thulasiramk-2310/vara/cmd/vara@latest
@@ -152,8 +152,11 @@ never pushable (a core VARA invariant).
 
 Back up the whole parent directory to back up the Hub. `--meta` requires
 `--policy` (ownership is seeded as policy). Omitting `--accounts`/`--hub` yields a
-headless API server; omitting `--policy` yields an anonymous allow-all server
-(fine only for a trusted network).
+headless API server. Omitting `--policy` makes every caller, signed in or not, able
+to read and write every repository, so `vara serve` refuses to start that way on
+any address other machines can reach. Bind to `127.0.0.1` to run it locally, or
+pass `--insecure-allow-all` if an anonymous server on a trusted network is really
+what you want.
 
 ---
 

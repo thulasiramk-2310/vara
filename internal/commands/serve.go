@@ -11,10 +11,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/thulasiramk-2310/vara/internal/authz"
@@ -27,12 +29,16 @@ import (
 // plane for `vara serve`. Empty fields leave the server anonymous / allow-all
 // (RFC-0016 behavior).
 type ServeConfig struct {
-	PolicyDir   string            // enables authorization (RFC-0018) when set
-	MetaDir     string            // enables the RFC-0019 control plane when set (requires PolicyDir)
-	AccountsDir string            // enables the RFC-0020 account/session/token control plane when set
-	HubDir      string            // serves the RFC-0021 same-origin static Hub UI when set
-	Basic       map[string]string // user -> secret (RFC-0017 static Basic)
-	Bearer      map[string]string // token -> subject (RFC-0017 static Bearer)
+	PolicyDir   string // enables authorization (RFC-0018) when set
+	MetaDir     string // enables the RFC-0019 control plane when set (requires PolicyDir)
+	AccountsDir string // enables the RFC-0020 account/session/token control plane when set
+	HubDir      string // serves the RFC-0021 same-origin static Hub UI when set
+	// AllowAnonymousAll lets a server with no --policy listen on a non-local
+	// address. Without a policy every caller, signed in or not, may read AND write
+	// every repository, so this must be asked for explicitly.
+	AllowAnonymousAll bool
+	Basic             map[string]string // user -> secret (RFC-0017 static Basic)
+	Bearer            map[string]string // token -> subject (RFC-0017 static Bearer)
 }
 
 // RunServe serves the repositories under root on addr until interrupted.
@@ -49,6 +55,10 @@ func RunServe(addr, root string, cfg ServeConfig) error {
 	}
 	if fi, err := os.Stat(absRoot); err != nil || !fi.IsDir() {
 		return fmt.Errorf("serve: root %q is not a directory", root)
+	}
+
+	if err := checkServeSafety(addr, cfg); err != nil {
+		return fmt.Errorf("serve: %w", err)
 	}
 
 	opts, err := buildServerOptions(cfg, absRoot)
@@ -192,4 +202,36 @@ type statusRecorder struct {
 func (s *statusRecorder) WriteHeader(code int) {
 	s.status = code
 	s.ResponseWriter.WriteHeader(code)
+}
+
+// checkServeSafety refuses the one dangerous combination: no per-repository
+// policy (so every caller may read and write everything) on an address other
+// machines can reach. A policy, or a loopback address, or an explicit
+// --insecure-allow-all, makes it acceptable.
+func checkServeSafety(addr string, cfg ServeConfig) error {
+	if cfg.PolicyDir != "" || cfg.AllowAnonymousAll || isLoopbackAddr(addr) {
+		return nil
+	}
+	return fmt.Errorf("refusing to listen on %q without --policy: every caller could read and write every repository.\n"+
+		"  Use --policy <dir> to enforce permissions (see docs/DEPLOYMENT.md),\n"+
+		"  or bind to the local machine only with --addr 127.0.0.1:8080,\n"+
+		"  or pass --insecure-allow-all if an anonymous, allow-all server is really what you want", addr)
+}
+
+// isLoopbackAddr reports whether addr (host:port, or just :port) listens only on
+// the local machine. An empty host means every interface, which is not loopback.
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	host = strings.Trim(host, "[]")
+	if host == "" {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
