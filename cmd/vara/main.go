@@ -69,7 +69,7 @@ func main() {
 
 	case "add":
 		ctx := mustCtx(true)
-		if err := commands.RunAdd(ctx, rest); err != nil {
+		if err := commands.RunAddFromCwd(ctx, rest); err != nil {
 			die("%v", err)
 		}
 
@@ -92,16 +92,29 @@ func main() {
 		fmt.Print(out)
 
 	case "commit":
-		if len(rest) < 2 || rest[0] != "-m" {
-			fmt.Fprintln(os.Stderr, "usage: vara commit -m \"<message>\"")
+		message, haveMessage := "", false
+		var opts commands.CommitOptions
+		for i := 0; i < len(rest); i++ {
+			switch rest[i] {
+			case "-m":
+				if i+1 < len(rest) {
+					message, haveMessage = rest[i+1], true
+					i++
+				}
+			case "--allow-empty":
+				opts.AllowEmpty = true
+			}
+		}
+		if !haveMessage {
+			fmt.Fprintln(os.Stderr, "usage: vara commit -m \"<message>\" [--allow-empty]")
 			os.Exit(1)
 		}
 		ctx := mustCtx(true)
-		id, err := commands.RunCommit(ctx, rest[1])
+		id, err := commands.RunCommitWith(ctx, message, opts)
 		if err != nil {
 			die("commit: %v", err)
 		}
-		fmt.Printf("[%s] %s\n", id.String()[:7], rest[1])
+		fmt.Printf("[%s] %s\n", id.String()[:7], message)
 
 	case "history", "log":
 		ctx := mustCtx(true)
@@ -695,13 +708,15 @@ Creates the .vara/ directory layout as specified in RFC-0003.
 	"add": `usage: vara add <pathspec>...
        vara add .
 
-Stage changes into the index. Use '.' to stage all modified and untracked files.
-Specific files or directories can be named:
+Stage changes into the index. Use '.' to stage all modified and untracked files
+under the current directory (the whole repository when you are at its top).
+Specific files or directories can be named, relative to where you are:
 
   vara add src/
   vara add main.go
 
-Files matching .varaignore are excluded.
+A name that matches no file, or points outside the repository, is an error and
+nothing is staged. Files matching .varaignore are excluded.
 `,
 	"rm": `usage: vara rm <pathspec>...
 
@@ -734,9 +749,10 @@ Show line-level changes as a unified diff.
 During a merge, unmerged paths are shown first as an ours-vs-theirs diff, since a
 plain diff of a file full of conflict markers is not useful.
 `,
-	"commit": `usage: vara commit -m "<message>"
+	"commit": `usage: vara commit -m "<message>" [--allow-empty]
 
-Record staged index contents as a new commit. Requires at least one prior add.
+Record staged index contents as a new commit. Requires at least one prior add:
+a commit that changes nothing is refused, unless --allow-empty is given.
 
 The -m flag is required. The message should describe the change, not the
 mechanism. Example:

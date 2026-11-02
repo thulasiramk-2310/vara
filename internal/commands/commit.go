@@ -47,8 +47,20 @@ func reflogActor(varaDir string) string {
 	return "unknown <unknown>"
 }
 
-// RunCommit executes the `vara commit` pipeline.
+// CommitOptions tunes `vara commit`.
+type CommitOptions struct {
+	// AllowEmpty records a commit even when nothing differs from the parent.
+	AllowEmpty bool
+}
+
+// RunCommit executes the `vara commit` pipeline. It refuses to record a commit that changes
+// nothing; use RunCommitWith and AllowEmpty for a deliberate empty commit.
 func RunCommit(ctx *Context, message string) (types.CommitID, error) {
+	return RunCommitWith(ctx, message, CommitOptions{})
+}
+
+// RunCommitWith is RunCommit with options.
+func RunCommitWith(ctx *Context, message string, opts CommitOptions) (types.CommitID, error) {
 	if message == "" {
 		return types.CommitID{}, fmt.Errorf("aborting commit due to empty commit message")
 	}
@@ -103,6 +115,21 @@ func RunCommit(ctx *Context, message string) (types.CommitID, error) {
 	if merging {
 		if p, ok := readMergeHead(ctx.Repository.VaraDir); ok {
 			parents = append(parents, p)
+		}
+	}
+
+	// 2c. Nothing new to record is almost always a slip (a second Enter, a forgotten add), and
+	// would only add a duplicate commit. A merge commit is the exception: it is meaningful even
+	// when its tree equals its first parent's.
+	if !merging && !opts.AllowEmpty {
+		same := false
+		if len(parents) == 0 {
+			same = len(ctx.Index.Entries) == 0
+		} else if pt, perr := commitTree(store, parents[0]); perr == nil {
+			same = pt == types.TreeID(treeID)
+		}
+		if same {
+			return types.CommitID{}, fmt.Errorf("nothing to commit; use 'vara add' first, or --allow-empty to record an empty commit")
 		}
 	}
 

@@ -17,16 +17,42 @@ import (
 	"github.com/thulasiramk-2310/vara/pkg/types"
 )
 
-// RunAdd stages files matching args into the index (RFC-0012 §2).
+// RunAddFromCwd is what the command line runs: the arguments are typed relative to the
+// directory the user is standing in, so they are turned into repository-relative pathspecs
+// first ("." from a subfolder means that folder). A path outside the repository is an error.
+func RunAddFromCwd(ctx *Context, args []string) error {
+	if len(args) == 0 {
+		return RunAdd(ctx, args)
+	}
+	specs, err := ResolvePathspecs(ctx.Repository.RootDir, args)
+	if err != nil {
+		return err
+	}
+	return RunAdd(ctx, specs)
+}
+
+// RunAdd stages files matching args into the index (RFC-0012 §2). The pathspecs are
+// relative to the repository root; the command line resolves them from the current
+// directory with RunAddFromCwd.
 //
-// "." or no path restriction means all modified/untracked files.
+// "." means all modified/untracked files.
 // Specific paths are matched by prefix: "vara add src/" stages everything under src/.
+// A pathspec that matches no file at all is an error, and nothing is staged then.
 func RunAdd(ctx *Context, args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("nothing specified, nothing added\n\nusage: vara add <pathspec>...\n       vara add .")
 	}
 
-	addAll := len(args) == 1 && args[0] == "."
+	specs := make([]string, len(args))
+	for i, a := range args {
+		specs[i] = filepath.ToSlash(a)
+	}
+	addAll := false
+	for _, spec := range specs {
+		if spec == "." {
+			addAll = true
+		}
+	}
 
 	wt, err := worktree.New(ctx.Repository.RootDir)
 	if err != nil {
@@ -39,13 +65,31 @@ func RunAdd(ctx *Context, args []string) error {
 		return fmt.Errorf("scan failed: %v", err)
 	}
 
-	// Collect candidates (modified or untracked), filtered by args.
+	// Every name must refer to something real (changed or not) before anything is staged,
+	// so a typo is an error and a mixed list never half-applies.
+	for i, spec := range specs {
+		if spec == "." {
+			continue
+		}
+		matched := false
+		for path := range res.Files {
+			if matchesAny(path, []string{spec}) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return fmt.Errorf("pathspec '%s' did not match any files (a typo, or ignored by .varaignore)", args[i])
+		}
+	}
+
+	// Collect candidates (modified or untracked), filtered by the specs.
 	var toAdd []string
 	for path, st := range res.Files {
 		if st != scanner.StatusModified && st != scanner.StatusUntracked {
 			continue
 		}
-		if addAll || matchesAny(path, args) {
+		if addAll || matchesAny(path, specs) {
 			toAdd = append(toAdd, path)
 		}
 	}
@@ -124,6 +168,40 @@ func RunAdd(ctx *Context, args []string) error {
 	// conflict path resolved — but only when its staged content is marker-free, so
 	// a still-conflicted file can never be marked resolved by accident.
 	return markResolvedByAdd(ctx.Repository.VaraDir, markerFree)
+}
+
+// ResolvePathspecs turns pathspecs typed relative to the current directory into pathspecs
+// relative to the repository root ("." alone meaning the whole repository). A pathspec that
+// points outside the repository is an error.
+func ResolvePathspecs(root string, args []string) ([]string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	// Compare real paths so a symlinked temp or home directory does not look like "outside".
+	if r, err := filepath.EvalSymlinks(root); err == nil {
+		root = r
+	}
+	if c, err := filepath.EvalSymlinks(cwd); err == nil {
+		cwd = c
+	}
+	specs := make([]string, 0, len(args))
+	for _, arg := range args {
+		abs := arg
+		if !filepath.IsAbs(abs) {
+			abs = filepath.Join(cwd, abs)
+		}
+		abs = filepath.Clean(abs)
+		if r, err := filepath.EvalSymlinks(filepath.Dir(abs)); err == nil {
+			abs = filepath.Join(r, filepath.Base(abs))
+		}
+		rel, err := filepath.Rel(root, abs)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return nil, fmt.Errorf("'%s' is outside the repository", arg)
+		}
+		specs = append(specs, filepath.ToSlash(rel))
+	}
+	return specs, nil
 }
 
 // markResolvedByAdd flips the sidecar Resolved flag for staged, marker-free
