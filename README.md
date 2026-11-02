@@ -23,7 +23,7 @@
 
 In archaic usage, a *vara* is a measuring rod — a fixed reference from which all distances are taken. In VARA, every object is identified by its SHA-256 content hash: an immutable measure. Every repository state is a precise point relative to that measure.
 
-VARA is built around a protocol-first architecture: SHA-256 object identity, zstd compression, transactional repository operations, and a commit graph index that makes history traversal O(1). The local engine is feature-complete in v0.1. Remote protocol, replication, and an AI-assisted workflow layer follow in subsequent releases.
+VARA is built around a protocol-first architecture: SHA-256 object identity, zstd compression, transactional repository operations, and a commit graph index that loads history with one file read instead of one read per commit (about 16 ms for 10,000 commits in the author's measurement). The local engine is feature-complete in v0.1. Remote protocol, replication, and an AI-assisted workflow layer follow in subsequent releases.
 
 ---
 

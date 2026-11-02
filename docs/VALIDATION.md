@@ -45,8 +45,9 @@ enforced.
   job. The harness now pushes a legitimate fast-forward, which succeeds in
   ~0.4 s.
 - **Concurrency is safe.** Four parallel authenticated clones all succeed.
-- **`history` stays O(1)-ish** at 46 ms via the RFC-0013 graph index, independent
-  of history depth.
+- **`history` stays fast** at 46 ms via the RFC-0013 graph index, which replaces
+  one disk read per commit with a single file read. The in-memory work still grows
+  with the number of commits (see ARCHITECTURE.md), so this is not constant time.
 
 ## Findings worth tracking
 
