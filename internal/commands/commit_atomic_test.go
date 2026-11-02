@@ -3,6 +3,7 @@ package commands
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -35,8 +36,8 @@ func commitOne(t *testing.T, root, name, content, msg string) {
 // A commit that could not move the branch must not say it succeeded. The failure used to be ignored,
 // so the user was told the work was saved when the branch still pointed at the old commit.
 func TestCommitReportsAFailedBranchUpdate(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("permissions do not stop root")
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("folder permissions do not stop writes on Windows or for root")
 	}
 	root := identRepo(t)
 	chdir(t, root)
