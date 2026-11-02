@@ -53,6 +53,60 @@ func RunMerge(ctx *Context, branchName string) (string, error) {
 	return MergeIntoHEAD(ctx, theirCommitID, branchName)
 }
 
+// fastForwardUnborn points a branch that has no commits yet at their commit and checks it out.
+// It refuses, naming the files, when that would overwrite a local file with different content,
+// and when files are staged (they would be dropped from the index). Both refusals leave the
+// repository untouched, and the operation can simply be repeated after fixing the cause.
+func fastForwardUnborn(ctx *Context, resolver *refs.FSResolver, headRef string, their types.CommitID, theirLabel string) (string, error) {
+	store := object.NewStore(ctx.Repository.VaraDir)
+	if len(ctx.Index.Entries) > 0 {
+		return "", fmt.Errorf("merge: you have staged files but no commit yet; commit them first, then pull again")
+	}
+	tree, err := commitTree(store, their)
+	if err != nil {
+		return "", fmt.Errorf("merge: %w", err)
+	}
+	blobs, err := treeBlobs(store, tree)
+	if err != nil {
+		return "", fmt.Errorf("merge: %w", err)
+	}
+	var clashes []string
+	for path, id := range blobs {
+		have, rerr := os.ReadFile(filepath.Join(ctx.Repository.RootDir, filepath.FromSlash(path)))
+		if rerr != nil {
+			continue // not there: nothing to overwrite
+		}
+		if types.BlobID(object.BlobHash(have)) != id {
+			clashes = append(clashes, path)
+		}
+	}
+	if len(clashes) > 0 {
+		sort.Strings(clashes)
+		return "", fmt.Errorf("merge: pulling would overwrite your local file(s): %s\n  move or rename them, then pull again", strings.Join(clashes, ", "))
+	}
+
+	txn, err := transaction.Begin(ctx.Repository.VaraDir, "merge", locking.NameRefs, locking.NameIndex)
+	if err != nil {
+		return "", fmt.Errorf("merge: %w", err)
+	}
+	defer txn.Rollback()
+	if err := txn.SetState(transaction.StateExecute); err != nil {
+		return "", fmt.Errorf("merge: journal: %w", err)
+	}
+	if err := checkoutCommit(ctx, their); err != nil {
+		return "", fmt.Errorf("merge: %w", err)
+	}
+	if err := resolver.Update(headRef, their); err != nil {
+		return "", fmt.Errorf("merge: update %s: %w", headRef, err)
+	}
+	appendReflog(ctx, types.CommitID{}, their, "merge "+theirLabel+": Fast-forward")
+	graphindex.Invalidate(ctx.Repository.VaraDir)
+	if err := txn.Commit(); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Fast-forward\nUpdated to %s\n", their.String()[:7]), nil
+}
+
 // MergeIntoHEAD merges an arbitrary commit into the current HEAD using the same
 // snapshot → transaction → merge-engine pipeline as `vara merge`. It is shared
 // by `vara merge <branch>` (theirLabel = branch name) and `vara pull`
@@ -62,6 +116,11 @@ func MergeIntoHEAD(ctx *Context, theirCommitID types.CommitID, theirLabel string
 
 	ourCommitID, err := resolver.Resolve("HEAD")
 	if err != nil {
+		// A branch with no commits yet (a clone of an empty repository, before its first
+		// pull) has nothing to merge into: taking their commit is a fast-forward from nothing.
+		if headRef, serr := resolver.ResolveSymbolic("HEAD"); serr == nil {
+			return fastForwardUnborn(ctx, resolver, headRef, theirCommitID, theirLabel)
+		}
 		return "", fmt.Errorf("merge: HEAD is not a valid commit; nothing to merge into")
 	}
 
