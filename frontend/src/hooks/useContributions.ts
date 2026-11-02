@@ -1,5 +1,6 @@
 import { useAsync } from './useAsync';
 import { api, CommitRef } from '../api/client';
+import { mapLimit } from '../utils/pool';
 
 // A contribution graph and activity feed derived from REAL commit history — not
 // mock data. It lists the repositories this server exposes, reads recent commits
@@ -37,20 +38,22 @@ export function level(count: number): number {
   return 4;
 }
 
+export const CONTRIB_REPOS = 50;
+
 async function load(): Promise<Contributions> {
   const { repositories } = await api.listRepos();
 
   const all: ActivityEntry[] = [];
-  await Promise.all(
-    repositories.map(async (r) => {
+  // At most CONTRIB_REPOS repositories are counted, six requests at a time, so a
+  // server with hundreds of repositories is not hit with hundreds at once.
+  await mapLimit(repositories.slice(0, CONTRIB_REPOS), 6, async (r) => {
       try {
         const d = await api.commits(r.name, 100, '');
         (d.commits || []).forEach((c) => all.push({ repo: r.name, commit: c }));
       } catch {
         // skip repositories we cannot read
       }
-    }),
-  );
+  });
 
   all.sort((a, b) => new Date(b.commit.timestamp).getTime() - new Date(a.commit.timestamp).getTime());
 

@@ -1,11 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useContributions } from '../hooks/useContributions';
-import { useRepoCards } from '../hooks/useRepoCards';
+import { useRepoList } from '../hooks/useRepoCards';
+import { RepoGrid } from '../components/common/RepoGrid';
 import { routes } from '../routes';
 import { Loading, ErrorState } from '../components/common/States';
 import { ContributionGraph, ActivityFeed } from '../components/common/Contributions';
-import { RepoCard } from '../components/common/RepoCard';
 import { usePageTitle } from '../hooks/usePageTitle';
 
 // DashboardPage lists the repositories this server exposes (RFC-0021), addressed
@@ -13,7 +13,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 // activity feed are all derived from real read-API data.
 export const DashboardPage: React.FC = () => {
   usePageTitle('Repositories');
-  const repos = useRepoCards();
+  const repos = useRepoList();
   const contrib = useContributions();
 
   return (
@@ -45,17 +45,9 @@ export const DashboardPage: React.FC = () => {
             <Loading />
           ) : repos.error ? (
             <ErrorState error={repos.error} />
-          ) : repos.data && repos.data.length ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
-              {repos.data.map((r) => (
-                <RepoCard key={r.name} repo={r} />
-              ))}
-            </div>
-          ) : (
-            <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '14px', padding: '48px 20px', textAlign: 'center', color: 'var(--dim)' }}>
-              No repositories yet. <Link to={routes.newRepo} style={{ color: 'var(--accent)' }}>Create one</Link>.
-            </div>
-          )}
+          ) : repos.data ? (
+            <RepoGrid repos={repos.data} />
+          ) : null}
         </div>
 
         {/* Recent activity rail */}

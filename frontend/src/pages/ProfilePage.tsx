@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom';
 import { api, Whoami } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useContributions } from '../hooks/useContributions';
-import { useRepoCards } from '../hooks/useRepoCards';
+import { useRepoList } from '../hooks/useRepoCards';
+import { RepoGrid } from '../components/common/RepoGrid';
 import { routes } from '../routes';
 import { Loading, ErrorState } from '../components/common/States';
 import { ContributionGraph, ActivityFeed } from '../components/common/Contributions';
-import { RepoCard } from '../components/common/RepoCard';
 import { Identicon } from '../components/common/Identicon';
 import { usePageTitle } from '../hooks/usePageTitle';
 
@@ -18,7 +18,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 export const ProfilePage: React.FC = () => {
   usePageTitle('Profile');
   const me = useAsync<Whoami>('whoami', () => api.whoami().catch(() => ({ id: 'anonymous', anonymous: true })), []);
-  const repos = useRepoCards();
+  const repos = useRepoList();
   const contrib = useContributions();
 
   const identity = me.data?.id || 'anonymous';
@@ -59,15 +59,9 @@ export const ProfilePage: React.FC = () => {
             <Loading />
           ) : repos.error ? (
             <ErrorState error={repos.error} />
-          ) : repos.data && repos.data.length ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '14px' }}>
-              {repos.data.map((r) => (
-                <RepoCard key={r.name} repo={r} />
-              ))}
-            </div>
-          ) : (
-            <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '14px', padding: '32px', textAlign: 'center', color: 'var(--dim)' }}>No repositories.</div>
-          )}
+          ) : repos.data ? (
+            <RepoGrid repos={repos.data} minCard={240} />
+          ) : null}
         </div>
 
         <div>

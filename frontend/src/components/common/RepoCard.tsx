@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock, Globe, GitBranch, GitCommit, Clock } from 'lucide-react';
-import { RepoCardData } from '../../hooks/useRepoCards';
-import { repoTone } from '../../utils/repo';
+import { useAsync } from '../../hooks/useAsync';
+import { ListedRepo } from '../../utils/repoList';
+import { repoTone, inferLanguage } from '../../utils/repo';
 import { RepoGlyph } from './RepoGlyph';
-import { when } from '../../api/client';
+import { api, when } from '../../api/client';
 import { routes } from '../../routes';
 
 // RepoCard: a premium repository card. Its colour is a stable pastel tone derived
@@ -12,10 +13,17 @@ import { routes } from '../../routes';
 // tone is a CSS variable pair — it adapts to light and dark theme. Everything shown
 // is real: visibility, language (inferred from files), default branch, commit count,
 // and last-updated.
-export const RepoCard: React.FC<{ repo: RepoCardData }> = ({ repo }) => {
+export const RepoCard: React.FC<{ repo: ListedRepo }> = ({ repo: listed }) => {
   const [hover, setHover] = useState(false);
+  // The card fetches its own details. These are the same cache entries the
+  // repository page uses, so opening the repository afterwards is instant.
+  const sum = useAsync('summary', () => api.summary(listed.name), [listed.name]);
+  // An empty repository has no files to list, and asking would only produce a 404.
+  const root = useAsync('tree', () => api.tree(listed.name, '', ''), [listed.name, '', ''], { enabled: !!sum.data && sum.data.commit_count > 0 });
+  const s = sum.data;
+  const language = root.data ? inferLanguage(root.data.entries.filter((e) => e.type !== 'dir').map((e) => e.name)) || undefined : undefined;
+  const repo = { ...listed, summary: s, language };
   const t = repoTone(repo.summary?.id || repo.name);
-  const s = repo.summary;
   const isPrivate = repo.visibility !== 'public';
 
   return (

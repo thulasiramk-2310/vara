@@ -39,7 +39,7 @@ export const NewRepoPage: React.FC = () => {
     try {
       await api.createRepo(name.trim());
       // The repository list on the dashboard is cached; make it fetch the new one.
-      await queryClient.invalidateQueries({ queryKey: ['repo-cards'] });
+      await queryClient.invalidateQueries({ queryKey: ['repo-list'] });
       showToast(`Created ${name.trim()}`);
       navigate(`/r/${encodeURIComponent(name.trim())}`);
     } catch (err) {

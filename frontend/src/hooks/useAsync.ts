@@ -36,14 +36,17 @@ export const queryClient = new QueryClient({
 // useAsync runs one read. `name` and `deps` together identify it in the cache, so
 // every distinct request needs its own name ("tree", "blob", ...) and every value
 // the request depends on in `deps`.
-export function useAsync<T>(name: string, fn: () => Promise<T>, deps: readonly unknown[]): AsyncState<T> {
-  const q = useQuery<T, ApiError>({ queryKey: [name, ...deps], queryFn: fn });
+// Pass `enabled: false` to hold the request back until it is worth making (for
+// example, until a repository is known to have commits).
+export function useAsync<T>(name: string, fn: () => Promise<T>, deps: readonly unknown[], opts: { enabled?: boolean } = {}): AsyncState<T> {
+  const q = useQuery<T, ApiError>({ queryKey: [name, ...deps], queryFn: fn, enabled: opts.enabled ?? true });
   return {
     data: q.data,
     error: q.error ?? undefined,
     // `loading` means "nothing to show yet". A background refetch of data that is
     // already on screen does not blank the page.
-    loading: q.isPending,
+    // A held-back request has nothing to show but is not "loading" either.
+    loading: q.isPending && q.fetchStatus !== 'idle',
     retry: () => void q.refetch(),
   };
 }
