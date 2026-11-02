@@ -50,7 +50,10 @@ export const ProfilePage: React.FC = () => {
         ) : contrib.error ? (
           <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '16px', padding: '22px', boxShadow: 'var(--shadow)' }}><ErrorState error={contrib.error} /></div>
         ) : contrib.data ? (
+          <>
           <ContributionGraph counts={contrib.data.counts} years={contrib.data.years} />
+          {contrib.data.note && <p style={{ margin: 'var(--s-2) 0 0', fontSize: '12.5px', color: 'var(--dim)' }}>{contrib.data.note}</p>}
+        </>
         ) : null}
 
         <div>

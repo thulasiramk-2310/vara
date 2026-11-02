@@ -6,6 +6,7 @@ import { languageFor, flatten, highlightLines, MAX_HIGHLIGHT_CHARS } from '../ut
 import { shouldRetry } from '../hooks/useAsync';
 import { treeResponse, commitsResponse, repoSummary, blobResponse } from '../api/schemas';
 import { copyText } from '../utils/clipboard';
+import { contribNote } from '../hooks/useContributions';
 import { routes } from '../routes';
 
 describe('safeNext (post sign-in redirect)', () => {
@@ -137,5 +138,17 @@ describe('copyText', () => {
     document.execCommand = vi.fn(() => true) as unknown as typeof document.execCommand;
     await expect(copyText('hello')).resolves.toBe(true);
     expect(document.querySelector('textarea')).toBeNull(); // the helper cleans up after itself
+  });
+});
+
+describe('contribution graph note', () => {
+  it('says nothing when the counts are complete', () => {
+    expect(contribNote(3, false)).toBeUndefined();
+    expect(contribNote(50, false)).toBeUndefined();
+  });
+  it('names each limit that was reached', () => {
+    expect(contribNote(51, false)).toBe('Counted from the first 50 of 51 repositories.');
+    expect(contribNote(3, true)).toBe('Counted from the latest 100 commits of each repository.');
+    expect(contribNote(300, true)).toBe('Counted from the latest 100 commits of each of the first 50 of 300 repositories.');
   });
 });

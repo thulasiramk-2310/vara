@@ -28,6 +28,7 @@ export interface Contributions {
   counts: Record<string, number>; // "YYYY-MM-DD" (UTC) → commit count
   years: number[]; // descending: current year down to the earliest with data
   total: number; // all-time commit total
+  note?: string; // set when the counts are partial, so the page can say so
 }
 
 export function level(count: number): number {
@@ -39,16 +40,32 @@ export function level(count: number): number {
 }
 
 export const CONTRIB_REPOS = 50;
+export const COMMITS_PER_REPO = 100;
+
+// contribNote says in words when the counts are not the whole story: only the first
+// CONTRIB_REPOS repositories are read, and each gives at most its latest
+// COMMITS_PER_REPO commits. It returns nothing when neither limit was reached.
+export function contribNote(totalRepos: number, someRepoHitTheCommitLimit: boolean): string | undefined {
+  const manyRepos = totalRepos > CONTRIB_REPOS;
+  if (manyRepos && someRepoHitTheCommitLimit) {
+    return `Counted from the latest ${COMMITS_PER_REPO} commits of each of the first ${CONTRIB_REPOS} of ${totalRepos} repositories.`;
+  }
+  if (manyRepos) return `Counted from the first ${CONTRIB_REPOS} of ${totalRepos} repositories.`;
+  if (someRepoHitTheCommitLimit) return `Counted from the latest ${COMMITS_PER_REPO} commits of each repository.`;
+  return undefined;
+}
 
 async function load(): Promise<Contributions> {
   const { repositories } = await api.listRepos();
 
   const all: ActivityEntry[] = [];
+  let hitLimit = false;
   // At most CONTRIB_REPOS repositories are counted, six requests at a time, so a
   // server with hundreds of repositories is not hit with hundreds at once.
   await mapLimit(repositories.slice(0, CONTRIB_REPOS), 6, async (r) => {
       try {
-        const d = await api.commits(r.name, 100, '');
+        const d = await api.commits(r.name, COMMITS_PER_REPO, '');
+        if ((d.commits || []).length >= COMMITS_PER_REPO || d.next) hitLimit = true;
         (d.commits || []).forEach((c) => all.push({ repo: r.name, commit: c }));
       } catch {
         // skip repositories we cannot read
@@ -76,7 +93,7 @@ async function load(): Promise<Contributions> {
   const years: number[] = [];
   for (let y = currentYear; y >= minYear; y--) years.push(y);
 
-  return { activity: all.slice(0, 10), counts, years, total: all.length };
+  return { activity: all.slice(0, 10), counts, years, total: all.length, note: contribNote(repositories.length, hitLimit) };
 }
 
 export function useContributions() {
