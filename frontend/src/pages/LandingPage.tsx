@@ -1,127 +1,157 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useToast } from '../hooks/useToast';
-import { DevIcon } from '../components/common/DevIcon';
+import { usePageTitle } from '../hooks/usePageTitle';
 
-// HowItWorks renders the animated VARA terminal demo (docs/assets/vara-demo.svg,
-// copied into public/). Its CSS keyframe animations — typed command lines and a
-// blinking cursor — play when embedded via <img>, and it stays fully
-// self-contained (no CDN, no external references).
-const HowItWorks: React.FC = () => (
-  <img
-    src="/vara-demo.svg"
-    alt="VARA terminal demo — vara init, add, commit, history, and verify"
-    style={{ width: '100%', maxWidth: '700px', height: 'auto', display: 'block' }}
-  />
-);
+const INSTALL = 'curl -fsSL https://raw.githubusercontent.com/thulasiramk-2310/vara/main/scripts/install.sh | sh';
+const REPO = 'https://github.com/thulasiramk-2310/vara';
+
+// Real output, captured from a v0.5-dev build in a scratch repository. The
+// integrity report is shortened to its result line; the elision is marked.
+const SESSION: { cmd?: string; out?: string }[] = [
+  { cmd: 'vara init' },
+  { out: 'Initialized empty VARA repository in /work/proj/.vara' },
+  { cmd: 'vara add notes.txt' },
+  { cmd: 'vara commit -m "first note"' },
+  { out: '[1ed50c7] first note' },
+  { cmd: 'vara log' },
+  { out: 'commit 1ed50c7f2842c6d405907952a3d58d95221045172bf6d68f0bfccaa991461fff' },
+  { out: 'author: Ada <ada@example.com>' },
+  { out: '    first note' },
+  { cmd: 'vara verify' },
+  { out: '...' },
+  { out: 'Result    Repository Healthy' },
+];
+
+const TODAY: { title: string; body: string }[] = [
+  {
+    title: 'Content-addressed',
+    body: 'Every file, tree and commit is stored under its own SHA-256 hash, and stored objects are read-only on disk.',
+  },
+  {
+    title: 'Verifiable',
+    body: 'vara verify re-hashes objects, trees, commits and refs, and exits non-zero when anything no longer matches.',
+  },
+  {
+    title: 'Safe to interrupt',
+    body: 'State files are written to a temporary file and renamed into place, so an interrupted write leaves the previous state intact.',
+  },
+  {
+    title: 'Self-hosted Hub',
+    body: 'vara serve runs a Hub with accounts, per-repository permissions and this browser interface. You run it; nobody else holds your history.',
+  },
+];
+
+const NOT_YET: string[] = [
+  'Pull requests, issues and an explore page are planned for v0.5. The Hub in v0.4 reads: files, history, diffs and search.',
+  'A repository can be marked public, but that does not yet allow anonymous reads. Access is granted per account in the policy file.',
+];
+
+// Accent colour is spent only on what is specific to VARA: object hashes and
+// the verified result.
+const fmt = (line = ''): React.ReactNode => {
+  const h = line.match(/^(\[|commit )([0-9a-f]{7})/);
+  if (h) {
+    const at = h[1].length;
+    return <>{line.slice(0, at)}<span style={{ color: 'var(--accent-strong)', fontWeight: 600 }}>{line.slice(at, at + 7)}</span>{line.slice(at + 7)}</>;
+  }
+  if (line.startsWith('Result')) {
+    return <>Result    <span style={{ color: 'var(--green)', fontWeight: 600 }}>Repository Healthy</span></>;
+  }
+  return line;
+};
+
+const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' };
+const wrap: React.CSSProperties = { maxWidth: '1040px', margin: '0 auto', padding: '0 24px' };
+const rule = '1px solid var(--border-strong)';
 
 export const LandingPage: React.FC = () => {
+  usePageTitle();
   const { showToast } = useToast();
   const copy = (text: string) => { navigator.clipboard.writeText(text); showToast('Copied to clipboard'); };
 
   return (
-    <div style={{ overflowX: 'hidden', animation: 'v-fade .2s ease' }}>
-      {/* Hero */}
-      <section style={{ position: 'relative', padding: '40px 0 48px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: '10%', left: '50%', transform: 'translate(-50%, -50%)', width: '520px', height: '520px', background: 'radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent), transparent 65%)', animation: 'v-glow-pulse 4s ease-in-out infinite', zIndex: 0, pointerEvents: 'none' }} />
-
-        <h1 style={{ position: 'relative', zIndex: 1, fontSize: 'clamp(38px, 6vw, 62px)', fontWeight: 800, lineHeight: 1.08, letterSpacing: '-1.5px', margin: '0 0 18px', maxWidth: '760px' }}>
-          <span style={{ background: 'linear-gradient(120deg, var(--accent), var(--purple), #60a5fa, var(--accent))', backgroundSize: '200% auto', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', animation: 'v-gradient-shift 6s linear infinite' }}>
-            Modern Version Control
-          </span>
-          <br />for Developer Teams.
-        </h1>
-
-        <p style={{ position: 'relative', zIndex: 1, fontSize: 'clamp(15px, 1.6vw, 18px)', color: 'var(--dim)', lineHeight: 1.55, maxWidth: '560px', margin: '0 0 26px' }}>
-          Content-addressed history, verifiable integrity and atomic operations. Self-hosted, with no account required for local work.
+    <div style={{ animation: 'v-fade .2s ease', overflowX: 'hidden' }}>
+      <section style={{ ...wrap, padding: '72px 24px 56px' }}>
+        <p style={{ ...mono, fontSize: '12.5px', letterSpacing: '.04em', color: 'var(--dim)', margin: '0 0 28px' }}>
+          VARA 0.4 &nbsp;/&nbsp; version control you host yourself
         </p>
 
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Link to="/signup" style={{ background: 'var(--accent)', color: 'var(--accent-fg)', borderRadius: '10px', padding: '13px 28px', fontSize: '15px', fontWeight: 650, textDecoration: 'none', boxShadow: '0 8px 24px -6px color-mix(in srgb, var(--accent) 50%, transparent)', transition: 'transform .15s ease' }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}>
-            Get started
-          </Link>
-          <Link to="/dashboard" style={{ background: 'var(--panel)', color: 'var(--text)', border: '1px solid var(--border-strong)', borderRadius: '10px', padding: '13px 24px', fontSize: '15px', fontWeight: 600, textDecoration: 'none', transition: 'border-color .15s ease' }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--text)'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-strong)'; }}>
-            View Live Demo
-          </Link>
-        </div>
+        <h1 style={{ fontSize: 'clamp(38px, 7vw, 76px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-.035em', margin: '0 0 28px', maxWidth: '880px', color: 'var(--text)' }}>
+          Version control,
+          <br />
+          <span style={{ color: 'var(--dim)' }}>measured against a fixed rod.</span>
+        </h1>
 
-        <div style={{ position: 'relative', zIndex: 1, marginTop: '28px', background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 16px', display: 'inline-flex', alignItems: 'center', gap: '12px', fontFamily: 'var(--font-mono)', fontSize: '13.5px', boxShadow: 'var(--shadow-md)', maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box' }}>
-          <span style={{ color: 'var(--dim)' }}>$</span>
-          <span style={{ color: 'var(--text)', overflowWrap: 'anywhere', minWidth: 0 }}>curl -fsSL https://raw.githubusercontent.com/thulasiramk-2310/vara/main/scripts/install.sh | sh</span>
-          <button onClick={() => copy('curl -fsSL https://raw.githubusercontent.com/thulasiramk-2310/vara/main/scripts/install.sh | sh')} style={{ background: 'var(--inset)', color: 'var(--dim)', border: '1px solid var(--border)', borderRadius: '6px', padding: '3px 9px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
-            Copy
+        <p style={{ fontSize: '18px', lineHeight: 1.6, color: 'var(--dim)', maxWidth: '600px', margin: '0 0 36px' }}>
+          History is stored as SHA-256 hashes, so it can be re-measured at any time: change one byte and the hash no longer matches. That is what lets it be checked instead of trusted.
+          VARA works on your machine with no account, and a Hub you run yourself adds sharing.
+        </p>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px 28px' }}>
+          <Link to="/dashboard" style={{ background: 'var(--text)', color: 'var(--bg)', borderRadius: '6px', padding: '12px 22px', fontSize: '15px', fontWeight: 600, textDecoration: 'none' }}>
+            Browse repositories
+          </Link>
+          <a href={REPO} style={{ color: 'var(--text)', fontSize: '15px', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '4px', textDecorationColor: 'var(--border-strong)' }}>
+            Read the source
+          </a>
+        </div>
+      </section>
+
+      <section style={{ ...wrap, paddingBottom: '72px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 16px', borderTop: rule, borderBottom: rule, padding: '14px 0', ...mono, fontSize: '13.5px' }}>
+          <span style={{ color: 'var(--faint)' }}>install</span>
+          <span tabIndex={0} style={{ color: 'var(--text)', whiteSpace: 'nowrap', overflowX: 'auto', minWidth: 0, flex: '1 1 260px', paddingBottom: '2px' }}>{INSTALL}</span>
+          <button onClick={() => copy(INSTALL)} style={{ ...mono, background: 'none', border: 'none', color: 'var(--accent-strong)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: '3px' }}>
+            copy
           </button>
         </div>
       </section>
 
-      {/* How it works */}
-      <section style={{ maxWidth: '960px', margin: '0 auto 52px', padding: '0 24px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-          <span style={{ fontSize: '12px', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>How it works</span>
-          <h2 style={{ fontSize: '26px', fontWeight: 700, letterSpacing: '-.6px', margin: '8px 0 0' }}>Every object is its own address</h2>
-        </div>
-        <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '18px', padding: '24px 20px', display: 'flex', justifyContent: 'center', boxShadow: 'var(--shadow)' }}>
-          <HowItWorks />
-        </div>
+      <section style={{ ...wrap, paddingBottom: '88px' }}>
+        <pre tabIndex={0} aria-label="A VARA session: init, add, commit, log and verify" style={{ ...mono, margin: 0, background: 'var(--inset)', border: '1px solid var(--border)', borderRadius: '6px', padding: '22px 24px', fontSize: '13.5px', lineHeight: 1.75, overflowX: 'auto', color: 'var(--dim)' }}>
+          {SESSION.map((l, i) => (
+            <div key={i} style={{ whiteSpace: 'pre' }}>
+              {l.cmd !== undefined
+                ? <span style={{ color: 'var(--text)', fontWeight: 600 }}><span style={{ color: 'var(--faint)' }}>$ </span>{l.cmd}</span>
+                : fmt(l.out)}
+            </div>
+          ))}
+        </pre>
       </section>
 
-      {/* Features */}
-      <section style={{ maxWidth: '1120px', margin: '0 auto 52px', padding: '0 24px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <h2 style={{ fontSize: '28px', fontWeight: 700, letterSpacing: '-.6px', margin: '0 0 10px' }}>What VARA gives you</h2>
-          <p style={{ color: 'var(--dim)', fontSize: '15px', margin: 0 }}>Built from the ground up for modern development workflows.</p>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-          {[
-            { icon: 'lightning' as const, color: 'var(--accent)', title: 'Content-addressed', desc: 'Every object is stored under its own SHA-256 address, so identical content is stored once.' },
-            { icon: 'shield' as const, color: 'var(--green)', title: 'Verifiable', desc: 'vara verify re-hashes every object and reports any that no longer match.' },
-            { icon: 'users' as const, color: 'var(--purple)', title: 'Branches and merges', desc: 'Branch, merge and undo from the command line. Review tools are planned for v0.5.' },
-          ].map((feat) => (
-            <div key={feat.title} style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '16px', padding: '26px 24px', transition: 'transform .2s ease, box-shadow .2s ease' }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-lg)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}>
-              <div style={{ marginBottom: '16px', width: '48px', height: '48px', borderRadius: '12px', background: 'var(--inset)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <DevIcon name={feat.icon} size={24} color={feat.color} />
-              </div>
-              <h3 style={{ fontSize: '17px', fontWeight: 700, margin: '0 0 8px' }}>{feat.title}</h3>
-              <p style={{ color: 'var(--dim)', fontSize: '14px', lineHeight: 1.55, margin: 0 }}>{feat.desc}</p>
+      <section style={{ ...wrap, paddingBottom: '88px' }}>
+        <h2 style={{ fontSize: '13px', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--dim)', margin: '0 0 8px' }}>
+          What it does today
+        </h2>
+        <div>
+          {TODAY.map((row, i) => (
+            <div key={row.title} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 32px', padding: '26px 0', borderBottom: rule, borderTop: i === 0 ? rule : 'none' }}>
+              <span style={{ ...mono, fontSize: '13px', color: 'var(--faint)', width: '32px', paddingTop: '4px' }}>{String(i + 1).padStart(2, '0')}</span>
+              <h3 style={{ fontSize: '21px', fontWeight: 600, letterSpacing: '-.015em', margin: 0, flex: '1 1 220px', maxWidth: '300px' }}>{row.title}</h3>
+              <p style={{ fontSize: '16px', lineHeight: 1.65, color: 'var(--text)', opacity: 0.74, margin: 0, flex: '2 1 320px', maxWidth: '560px' }}>{row.body}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Bottom CTA */}
-      <section style={{ background: 'radial-gradient(circle at 50% 100%, color-mix(in srgb, var(--accent) 14%, var(--panel)), var(--panel))', border: '1px solid var(--border)', borderRadius: '20px', padding: '44px 32px', textAlign: 'center', margin: '0 0 40px', boxShadow: 'var(--shadow-lg)' }}>
-        <h2 style={{ fontSize: '30px', fontWeight: 750, letterSpacing: '-.8px', margin: '0 0 12px' }}>Ready to try it?</h2>
-        <p style={{ color: 'var(--dim)', fontSize: '15px', maxWidth: '460px', margin: '0 auto 24px' }}>Host your own Hub and keep your history on your own server.</p>
-        <Link to="/signup" style={{ display: 'inline-block', background: 'linear-gradient(135deg, var(--accent), var(--purple))', color: '#fff', textDecoration: 'none', borderRadius: '10px', padding: '14px 32px', fontSize: '15px', fontWeight: 650, boxShadow: '0 8px 24px -6px color-mix(in srgb, var(--accent) 50%, transparent)', transition: 'transform .15s ease' }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}>
-          Create an account
-        </Link>
+      <section style={{ ...wrap, paddingBottom: '88px' }}>
+        <h2 style={{ fontSize: '13px', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--dim)', margin: '0 0 20px' }}>
+          Not yet
+        </h2>
+        {NOT_YET.map((t) => (
+          <p key={t} style={{ fontSize: '16px', lineHeight: 1.65, color: 'var(--text)', opacity: 0.74, margin: '0 0 14px', maxWidth: '680px' }}>{t}</p>
+        ))}
       </section>
 
-      {/* Footer */}
-      <footer style={{ borderTop: '1px solid var(--border)', paddingTop: '28px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '24px', color: 'var(--dim)', fontSize: '13px' }}>
-        <div style={{ display: 'grid', gap: '8px', maxWidth: '280px' }}>
-          <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--text)' }}>VARA</span>
-          <span>Content-addressed version control, self-hosted.</span>
-          <span style={{ color: 'var(--faint)' }}>© {new Date().getFullYear()} VARA</span>
-        </div>
-        <div style={{ display: 'flex', gap: '48px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'grid', gap: '8px', alignContent: 'start' }}>
-            <span style={{ fontWeight: 650, color: 'var(--text)', marginBottom: '4px' }}>Product</span>
-            <Link to="/dashboard" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Repositories</Link>
-            <Link to="/dashboard" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Dashboard</Link>
-            <Link to="/new" style={{ color: 'var(--dim)', textDecoration: 'none' }}>New repository</Link>
-          </div>
-          <div style={{ display: 'grid', gap: '8px', alignContent: 'start' }}>
-            <span style={{ fontWeight: 650, color: 'var(--text)', marginBottom: '4px' }}>Account</span>
-            <Link to="/login" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Sign in</Link>
-            <Link to="/signup" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Sign up</Link>
-            <Link to="/profile" style={{ color: 'var(--dim)', textDecoration: 'none' }}>Profile</Link>
-          </div>
+      <footer style={{ ...wrap, paddingBottom: '48px' }}>
+        <div style={{ borderTop: rule, paddingTop: '28px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '16px', fontSize: '14px', color: 'var(--dim)' }}>
+        <span>VARA, content-addressed version control. Self-hosted.</span>
+        <span style={{ display: 'flex', gap: '24px' }}>
+          <Link to="/dashboard" style={{ color: 'var(--dim)' }}>Repositories</Link>
+          <Link to="/login" style={{ color: 'var(--dim)' }}>Sign in</Link>
+          <a href={REPO} style={{ color: 'var(--dim)' }}>Source</a>
+        </span>
         </div>
       </footer>
     </div>
