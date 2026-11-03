@@ -11,6 +11,8 @@ package fsutil
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"time"
 )
 
 // syncFile and syncDir are variables so tests can check the order of the steps.
@@ -48,7 +50,7 @@ func WriteFile(tmp, final string, data []byte, perm os.FileMode) error {
 		os.Remove(tmp)
 		return err
 	}
-	if err := os.Rename(tmp, final); err != nil {
+	if err := renameFile(tmp, final); err != nil {
 		os.Remove(tmp)
 		return err
 	}
@@ -56,4 +58,31 @@ func WriteFile(tmp, final string, data []byte, perm os.FileMode) error {
 	// (Windows) cannot open a directory, and the rename has already taken effect either way.
 	_ = syncDir(filepath.Dir(final))
 	return nil
+}
+
+// renameFn and renameRetries are variables so a test can make renaming fail on any platform.
+var (
+	renameFn      = os.Rename
+	renameRetries = defaultRenameRetries()
+)
+
+func defaultRenameRetries() int {
+	if runtime.GOOS == "windows" {
+		return 40
+	}
+	return 0
+}
+
+// renameFile moves tmp over final. On Windows a rename fails while anything has the
+// destination open, and a reader does that for a moment each time it reads the file. So
+// there the rename is tried again, waiting a little longer each time (about 0.8 s in all
+// before giving up). Everywhere else one attempt is all it needs.
+func renameFile(tmp, final string) error {
+	var err error
+	for attempt := 0; ; attempt++ {
+		if err = renameFn(tmp, final); err == nil || attempt >= renameRetries {
+			return err
+		}
+		time.Sleep(time.Duration(attempt+1) * time.Millisecond)
+	}
 }
