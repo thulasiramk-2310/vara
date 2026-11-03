@@ -1,0 +1,85 @@
+name: Release check
+
+# A release is built from a pushed tag, and by then it is too late to find out the setup is broken.
+# This does everything the release does except publish: it builds every platform archive and the Hub
+# UI archive from the same config, then checks what came out. It runs by hand, and whenever the files
+# a release depends on change.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/release-check"]
+  pull_request:
+    paths:
+      - ".goreleaser.yaml"
+      - "scripts/build-hub-ui.sh"
+      - "frontend/package-lock.json"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/release-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    name: Build every archive without publishing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build the Hub UI
+        run: sh scripts/build-hub-ui.sh hub-ui
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check what was built
+        run: |
+          set -eu
+          ls -l dist
+          for target in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64; do
+            f=$(ls dist/vara_*_"$target".tar.gz) || { echo "missing archive for $target"; exit 1; }
+            tar -tzf "$f" | grep -q '^vara$\|/vara$' || { echo "no vara binary in $f"; exit 1; }
+          done
+          for target in windows_amd64 windows_arm64; do
+            f=$(ls dist/vara_*_"$target".zip) || { echo "missing archive for $target"; exit 1; }
+            unzip -l "$f" | grep -q 'vara.exe' || { echo "no vara.exe in $f"; exit 1; }
+          done
+          ui=$(ls dist/vara-hub-ui_*.tar.gz)
+          tar -tzf "$ui" | grep -q 'hub-ui/index.html' || { echo "hub UI archive has no index.html"; exit 1; }
+          tar -tzf "$ui" | grep -q 'hub-ui/assets/' || { echo "hub UI archive has no assets"; exit 1; }
+          test -s dist/checksums.txt || { echo "no checksums"; exit 1; }
+          # the Linux binary runs and reports a version
+          mkdir -p /tmp/vara-check && tar -xzf "$(ls dist/vara_*_linux_amd64.tar.gz)" -C /tmp/vara-check
+          /tmp/vara-check/vara version
+          # the UI archive serves: unpack it and start the hub on it
+          mkdir -p /tmp/ui-check && tar -xzf "$ui" -C /tmp/ui-check
+          /tmp/vara-check/vara serve --addr 127.0.0.1:18080 --root /tmp/ui-check/repos --hub /tmp/ui-check/hub-ui &
+          pid=$!
+          for i in 1 2 3 4 5 6 7 8 9 10; do curl -sf -o /dev/null http://127.0.0.1:18080/ && break; sleep 1; done
+          curl -sf http://127.0.0.1:18080/ | grep -q 'id="root"' || { kill $pid; echo "the hub did not serve the UI from the archive"; exit 1; }
+          kill $pid
+          echo "release check passed"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-snapshot
+          path: dist/*.tar.gz
+          retention-days: 3
