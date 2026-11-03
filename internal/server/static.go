@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -41,12 +42,16 @@ func staticHandler(dir string) http.Handler {
 		// Clean to a rooted path so ".." can never escape dir, then resolve.
 		clean := filepath.Clean("/" + r.URL.Path)
 		full := filepath.Join(dir, clean)
+		// `clean` uses the operating system's separator (backslashes on Windows), so it is
+		// only for finding the file. Decisions about the web address use this form, which
+		// always has forward slashes.
+		urlPath := path.Clean("/" + r.URL.Path)
 		if fi, err := os.Stat(full); err != nil || fi.IsDir() {
 			// Build output lives under /assets/. A missing file there is a real 404,
 			// so a stale page never receives HTML where it asked for JavaScript or
 			// CSS. Other paths are app routes and may contain dots (a deep link to
 			// /r/demo/blob/README.md), so only this prefix is treated as a file.
-			if strings.HasPrefix(clean, "/assets/") {
+			if strings.HasPrefix(urlPath, "/assets/") {
 				http.NotFound(w, r)
 				return
 			}
@@ -57,7 +62,7 @@ func staticHandler(dir string) http.Handler {
 			return
 		}
 		switch {
-		case strings.HasPrefix(clean, "/assets/"):
+		case strings.HasPrefix(urlPath, "/assets/"):
 			// Build output names these files by content hash, so they never change.
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		default:

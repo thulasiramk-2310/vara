@@ -87,6 +87,14 @@ func TestStaticHubCachingAndMissingAssets(t *testing.T) {
 	if resp, b := get("/assets/missing.js"); resp.StatusCode != http.StatusNotFound || strings.Contains(b, "vara hub") {
 		t.Fatalf("missing asset: status %d body %q", resp.StatusCode, b)
 	}
+	// Odd spellings of the same address are judged by their URL form, so they cannot skip the
+	// missing-asset rule or lose the caching header.
+	if resp, _ := get("//assets/missing.js"); resp.StatusCode == http.StatusOK {
+		t.Fatalf("//assets/missing.js must not fall back to the app page")
+	}
+	if resp, _ := get("/assets/./index-abc.js"); resp.Header.Get("Cache-Control") != "public, max-age=31536000, immutable" {
+		t.Fatalf("/assets/./index-abc.js Cache-Control = %q", resp.Header.Get("Cache-Control"))
+	}
 	// App routes that contain dots are still app routes, not missing files.
 	for _, p := range []string{"/r/demo/blob/README.md", "/r/my.repo"} {
 		if resp, b := get(p); resp.StatusCode != http.StatusOK || !strings.Contains(b, "vara hub") {
