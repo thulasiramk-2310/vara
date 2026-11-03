@@ -46,6 +46,7 @@ VARA is built around a protocol-first architecture: SHA-256 object identity, zst
 | **Conflict lifecycle** | `resolve` (ours/theirs/union/auto), `rm`, `merge --abort`/`--continue`, conflict-aware `status` & `diff`. Content-bearing sidecar; commit gated until resolved. |
 | **Structural merge** | Opt-in per-type merge of **JSON / YAML / TOML** — independent-key edits auto-combine instead of false-conflicting (RFC-0025). |
 | **Self-hosted Hub** | `vara serve --hub`: accounts, per-repository permissions and a read-only web interface (files with syntax colours, file history, diffs, search, branch switching). |
+| **Work with other people** | Run your own server, add accounts, and `vara share` a repository with a teammate in one command (read or write). See [docs/COLLABORATING.md](docs/COLLABORATING.md). There is no hosted service; someone runs the server. |
 | **Three-layer undo** | Journal rollback → reflog restore → snapshot archive. Always a path to recovery. |
 | **Commit Graph Index** | Binary `graph.idx` (RFC-0013). History on 10k commits: **16 ms** (was 75.8 s). |
 | **Fuzz-tested parsers** | Ref names, journal entries, commit objects, tree blobs, and binary inputs. |
@@ -297,6 +298,8 @@ docker compose exec hub vara account create \
 Or run the binary directly against a data directory; see
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the data layout, systemd unit, and
 TLS / reverse-proxy setup.
+
+**Working with other people.** Cloning, pushing and pulling over the network work against a Hub you run. `vara share --policy <dir> <repo> <user> --write` gives a teammate access in one step. [docs/COLLABORATING.md](docs/COLLABORATING.md) walks through a server for a classroom, a team or a lab, and says what is not there yet (no hosted service, no pull requests).
 
 **What the Hub does today (v0.4):** it is read-only. You can browse files with syntax colours
 and a folder tree, read a file's history, view a commit's diff, search commits, file names
