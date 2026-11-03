@@ -74,12 +74,16 @@ jobs:
           mkdir -p /tmp/vara-check && tar -xzf "$(ls dist/vara_*_linux_amd64.tar.gz)" -C /tmp/vara-check
           /tmp/vara-check/vara version
           # the UI archive serves: unpack it and start the hub on it
-          mkdir -p /tmp/ui-check && tar -xzf "$ui" -C /tmp/ui-check
-          /tmp/vara-check/vara serve --addr 127.0.0.1:18080 --root /tmp/ui-check/repos --hub /tmp/ui-check/hub-ui &
+          mkdir -p /tmp/ui-check/repos && tar -xzf "$ui" -C /tmp/ui-check
+          /tmp/vara-check/vara serve --addr 127.0.0.1:18080 --root /tmp/ui-check/repos --hub /tmp/ui-check/hub-ui > /tmp/ui-check/serve.log 2>&1 &
           pid=$!
           for i in 1 2 3 4 5 6 7 8 9 10; do curl -sf -o /dev/null http://127.0.0.1:18080/ && break; sleep 1; done
-          curl -sf http://127.0.0.1:18080/ | grep -q 'id="root"' || { kill $pid; echo "the hub did not serve the UI from the archive"; exit 1; }
-          kill $pid
+          if ! curl -sf http://127.0.0.1:18080/ | grep -q 'id="root"'; then
+            echo "the hub did not serve the UI from the archive; its log:"; cat /tmp/ui-check/serve.log
+            kill $pid 2>/dev/null || true
+            exit 1
+          fi
+          kill $pid 2>/dev/null || true
           echo "release check passed"
 
       - uses: actions/upload-artifact@v4
