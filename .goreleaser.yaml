@@ -50,8 +50,12 @@ archives:
     meta: true
     name_template: "vara-hub-ui_{{ .Version }}"
     # Paths are kept, so the archive unpacks to hub-ui/index.html and hub-ui/assets/...
+    # "hub-ui/**/*" would only match files inside a subfolder and leave out index.html, so the
+    # top-level files and the assets folder are listed separately. The release check compares the
+    # archive with the built folder file by file, so a new kind of file cannot be left out unseen.
     files:
-      - "hub-ui/**/*"
+      - "hub-ui/*.*"
+      - "hub-ui/assets/*"
 
 checksum:
   name_template: checksums.txt

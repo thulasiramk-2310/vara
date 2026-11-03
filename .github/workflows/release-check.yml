@@ -63,7 +63,10 @@ jobs:
             unzip -l "$f" | grep -q 'vara.exe' || { echo "no vara.exe in $f"; exit 1; }
           done
           ui=$(ls dist/vara-hub-ui_*.tar.gz)
-          echo "Hub UI archive contents:"; tar -tzf "$ui" | head -12
+          # every file of the built UI is in the archive, and nothing else is
+          (cd hub-ui && find . -type f | sed 's|^\./|hub-ui/|' | sort) > /tmp/ui-want.txt
+          tar -tzf "$ui" | grep -v '/$' | sort > /tmp/ui-got.txt
+          diff /tmp/ui-want.txt /tmp/ui-got.txt || { echo "the Hub UI archive differs from the built folder"; exit 1; }
           tar -tzf "$ui" | grep -q 'hub-ui/index.html' || { echo "hub UI archive has no index.html"; exit 1; }
           tar -tzf "$ui" | grep -q 'hub-ui/assets/' || { echo "hub UI archive has no assets"; exit 1; }
           test -s dist/checksums.txt || { echo "no checksums"; exit 1; }
