@@ -10,6 +10,12 @@ set -eu
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 out=${1:-$root/hub-ui}
+# A relative folder is relative to where the command was run, not to frontend/ (the script
+# moves there below), so the release workflow's `build-hub-ui.sh hub-ui` lands in ./hub-ui.
+case "$out" in
+    /*) ;;
+    *) out=$(pwd)/$out ;;
+esac
 
 if ! command -v npm >/dev/null 2>&1; then
     echo "build-hub-ui: npm is required (Node.js 20 or newer)" >&2
