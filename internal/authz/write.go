@@ -3,8 +3,9 @@ package authz
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
+
+	"github.com/thulasiramk-2310/vara/internal/fsutil"
 )
 
 // WritePolicy atomically writes a policy file granting each subject its
@@ -34,15 +35,9 @@ func WritePolicy(path string, subjects map[string][]Capability) error {
 	}
 	// Write to a temp file in the same directory, then rename, so a reader never
 	// observes a half-written policy (same atomic-rename discipline as the store).
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o644); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	// fsutil.WriteFile retries the rename on Windows, where it fails for a moment while a
+	// running server has the policy file open.
+	return fsutil.WriteFile(path+".tmp", path, append(data, '\n'), 0o644)
 }
 
 // PolicyPath returns the on-disk path of a repository's policy file within a

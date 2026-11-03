@@ -479,6 +479,12 @@ func main() {
 			die("%v", err)
 		}
 
+	case "share":
+		// Edits the policy folder of a server on THIS computer; no network, no login.
+		if err := commands.RunShare(rest); err != nil {
+			die("%v", err)
+		}
+
 	case "account":
 		// On-host bootstrap mode (filesystem, no auth) is selected by --accounts;
 		// otherwise this is the HTTP account-admin client.
@@ -769,6 +775,7 @@ Hub commands (RFC-0019, RFC-0020):
   whoami    Show who the server thinks you are (and your capabilities)
   token     Manage API tokens (create/list/revoke)
   account   Manage accounts (create/disable/delete/passwd)
+  share     Give a teammate access to a repository on a server you run
 
   version   Print VARA version
 
@@ -1191,6 +1198,28 @@ is long-lived until revoked; its secret is shown once at creation.
 
 After 'vara login <server-url>' no credential flags are needed. Avoid --basic on a
 shared computer: the password would stay in your shell history.
+`,
+	"share": `usage: vara share --policy <dir> <repo> <user> [--read | --write | --none]
+       vara share --policy <dir> [<repo>]                      who has access
+       vara share --policy <dir> --accounts <dir> <repo> <user> --write
+
+Give someone access to a repository on a server YOU run, with one command. Run it
+on the computer that runs 'vara serve', and point --policy at the same folder.
+
+  --read    clone, fetch and pull (the default)
+  --write   read, plus push and create branches
+  --none    remove their access
+
+It also lets them see the repository in the Hub's web page, which needs a second
+permission that used to be edited by hand. A write person cannot force-push, delete
+a branch, rename or delete the repository, or change who has access. An owner's
+access is never changed by this command. With --accounts the account must exist.
+
+  vara account create --accounts ~/hub/accounts --username bob --password-stdin
+  vara share --policy ~/hub/policy --accounts ~/hub/accounts notes bob --write
+  vara share --policy ~/hub/policy notes
+
+See docs/COLLABORATING.md for running a server for your team.
 `,
 	"account": `usage: vara account <create|disable|delete|passwd> <server-url> <username>
                     [--password <pw>] [--basic u:s | --bearer t]
