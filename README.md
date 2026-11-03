@@ -5,6 +5,11 @@
 <br />
 <br />
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/vara-fold-icon.svg">
+  <img src="docs/assets/brand/vara-fold-monochrome.svg" alt="VARA" width="96">
+</picture>
+
 # VARA
 
 **RFC-driven, transactional, content-addressed distributed version control platform written in Go.**
@@ -40,6 +45,7 @@ VARA is built around a protocol-first architecture: SHA-256 object identity, zst
 | **Decide conflicts your way** | `merge`/`pull` with `--ours`/`--theirs`/`--union`, per-file `[merge "rule"]` settings, or `--interactive` to choose hunk by hunk; anything not covered still waits for you. |
 | **Conflict lifecycle** | `resolve` (ours/theirs/union/auto), `rm`, `merge --abort`/`--continue`, conflict-aware `status` & `diff`. Content-bearing sidecar; commit gated until resolved. |
 | **Structural merge** | Opt-in per-type merge of **JSON / YAML / TOML** — independent-key edits auto-combine instead of false-conflicting (RFC-0025). |
+| **Self-hosted Hub** | `vara serve --hub`: accounts, per-repository permissions and a read-only web interface (files with syntax colours, file history, diffs, search, branch switching). |
 | **Three-layer undo** | Journal rollback → reflog restore → snapshot archive. Always a path to recovery. |
 | **Commit Graph Index** | Binary `graph.idx` (RFC-0013). History on 10k commits: **16 ms** (was 75.8 s). |
 | **Fuzz-tested parsers** | Ref names, journal entries, commit objects, tree blobs, and binary inputs. |
@@ -277,8 +283,8 @@ Result     Repository Healthy
 
 ## Run your own Hub
 
-VARA includes a self-hosted Hub — a web UI plus read/management API over your
-repositories, with accounts, sessions, and capability-based authorization.
+VARA includes a self-hosted Hub: a web interface plus a read and management API over
+your repositories, with accounts, sessions and capability-based authorization.
 
 ```sh
 docker compose up -d --build
@@ -288,9 +294,28 @@ docker compose exec hub vara account create \
 # open http://localhost:8080
 ```
 
-Or run the binary directly against a data directory — see
+Or run the binary directly against a data directory; see
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the data layout, systemd unit, and
 TLS / reverse-proxy setup.
+
+**What the Hub does today (v0.4):** it is read-only. You can browse files with syntax colours
+and a folder tree, read a file's history, view a commit's diff, search commits, file names
+and content, switch branches, and see a repository at any commit. Pushing is done with the
+`vara` command.
+
+**What it does not do yet:**
+- Pull requests, issues, organisations and teams are planned for v0.5; the Hub shows them as "soon".
+- There is no self-service sign-up. The server's administrator creates accounts.
+- A repository can be marked *public*, but that label does not yet let anonymous visitors read it;
+  access is decided by the policy file.
+- A very large diff (a file with thousands of changed lines) is reported as too different to show line by
+  line, instead of being drawn.
+
+**Safe by default.** Without `--policy`, every caller could read and write every repository, so
+`vara serve` refuses to start that way on any address other machines can reach. Bind to `127.0.0.1`
+to run it locally, give it a `--policy`, or pass `--insecure-allow-all` if an anonymous server on a
+trusted network is really what you want. Every response carries an `X-Request-Id`, state-changing
+requests that a browser sent from another site are refused, and repeated failed sign-ins are slowed down.
 
 ---
 
@@ -312,7 +337,8 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 
 ## Current Status
 
-**v0.4.0** — the Hub can now read a repository the way a code host does: browse the file tree, read files, view a commit's diff, and **search** commits, file names, and content — all as thin, read-only projections over the unchanged engine. Built on the installable, self-hostable v0.3 platform. See [docs/RELEASE-v0.4.0.md](docs/RELEASE-v0.4.0.md).
+**v0.4.4 is the latest release.** This README also describes work made since then (listed in the table below as
+*after v0.4.4*). **v0.4.0** — the Hub can now read a repository the way a code host does: browse the file tree, read files, view a commit's diff, and **search** commits, file names, and content — all as thin, read-only projections over the unchanged engine. Built on the installable, self-hostable v0.3 platform. See [docs/RELEASE-v0.4.0.md](docs/RELEASE-v0.4.0.md).
 
 | Component | Status |
 |-----------|--------|
@@ -320,6 +346,7 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 | Transactional storage with crash recovery | ✅ Complete |
 | Three-way merge and conflict detection | ✅ Complete |
 | Conflict resolution lifecycle (`resolve`/`rm`/`merge --abort`/`--continue`, zdiff3) | ✅ Complete |
+| Choose how conflicts are resolved: `--ours`/`--theirs`/`--union`, per-file rules, `--interactive` (after v0.4.4) | ✅ Complete |
 | Structural merge for JSON / YAML / TOML (opt-in, RFC-0025) | ✅ Complete |
 | Commit Graph Index (RFC-0013) | ✅ Complete |
 | Repository verification (`vara verify`) | ✅ Complete |
@@ -328,6 +355,8 @@ The `vara history` warm path reads `graph.idx` directly — one file read, in-me
 | HTTP transport + self-hosted Hub (`vara serve --hub`) | ✅ Complete |
 | Binary release artifacts (Linux/macOS/Windows) + Docker | ✅ Complete |
 | Hub read UI — browser, diff viewer, search (RFC-0022–0024) | ✅ Complete |
+| Hub UI refresh: file tree, file history, syntax colours, branch switching, loading and error states, tests (after v0.4.4) | ✅ Complete |
+| Pull requests, issues, organisations and teams | 🚧 v0.5 |
 | Pack file format and delta compression | 🚧 later |
 | AI workflow layer | 🚧 later |
 
